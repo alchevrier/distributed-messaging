@@ -1,0 +1,21 @@
+plugins {
+    id 'buildlogic.java-library-conventions'
+    id 'java'
+    id 'groovy'
+}
+
+dependencies {
+    implementation project(':message')
+
+    testImplementation 'org.spockframework:spock-core:2.4-groovy-5.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+
+    testLogging {
+        events "started", "passed", "skipped", "failed"
+    }
+}
