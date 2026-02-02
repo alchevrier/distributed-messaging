@@ -24,11 +24,11 @@ public class LogManagerImpl implements LogManager {
 
     @Override
     public byte[] read(Topic topic, long offset) {
-//        var topicRetrieved = logsPerTopic.get(topic);
-//        if (topicRetrieved == null) {
-//            // figure out what to do here CREATE or throw Exception?
-//            throw new RuntimeException("Not implemented yet");
-//        }
-//        return topicRetrieved.read(offset);
+        var topicRetrieved = logsPerTopic.get(topic);
+        if (topicRetrieved == null) {
+            // figure out what to do here CREATE or throw Exception?
+            throw new RuntimeException("Not implemented yet");
+        }
+        return topicRetrieved.read(offset);
     }
 }

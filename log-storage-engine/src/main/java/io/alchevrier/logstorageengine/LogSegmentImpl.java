@@ -6,6 +6,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
@@ -18,27 +19,32 @@ public class LogSegmentImpl implements LogSegment {
     private final Map<Long, Long> offsetIndex;
     private final ReentrantLock writeLock;
 
-    public LogSegmentImpl(String segmentPathName, long baseOffset) throws IOException {
+    public LogSegmentImpl(String segmentPathName, long baseOffset) {
         this.baseOffset = baseOffset;
 
         Path logPath = Path.of(segmentPathName + ".log");
         Path indexPath = Path.of(segmentPathName + ".index");
 
         // Create parent directory if it doesn't exist
-        Files.createDirectories(logPath.getParent());
+        try {
+            Files.createDirectories(logPath.getParent());
 
-        logChannel = FileChannel.open(
-                logPath,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.READ,
-                StandardOpenOption.WRITE
-        );
-        indexChannel = FileChannel.open(
-                indexPath,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.READ,
-                StandardOpenOption.WRITE
-        );
+            logChannel = FileChannel.open(
+                    logPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.READ,
+                    StandardOpenOption.WRITE
+            );
+            indexChannel = FileChannel.open(
+                    indexPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.READ,
+                    StandardOpenOption.WRITE
+            );
+        } catch (IOException ex) {
+            throw new RuntimeException("Could not do IO operation while initializing the LogSegment for: " + segmentPathName, ex);
+        }
+
         offsetIndex = loadIndex();
         writeLock = new ReentrantLock();
     }
@@ -73,6 +79,12 @@ public class LogSegmentImpl implements LogSegment {
     }
 
     @Override
+    public long lastOffset() {
+        if (this.offsetIndex.isEmpty()) return this.baseOffset - 1;
+        return Collections.max(this.offsetIndex.keySet());
+    }
+
+    @Override
     public void append(long offset, byte[] data) {
         writeLock.lock();
         try {
@@ -85,7 +97,7 @@ public class LogSegmentImpl implements LogSegment {
             buffer.put(data);
             buffer.flip();
 
-            logChannel.write(buffer);
+            logChannel.write(buffer, filePosition);
 
             // Format of index entry: [offset: 8 bytes][filePosition: 8 bytes]
             var indexBuffer = ByteBuffer.allocate(8 + 8);
@@ -93,7 +105,7 @@ public class LogSegmentImpl implements LogSegment {
             indexBuffer.putLong(filePosition);
             indexBuffer.flip();
 
-            indexChannel.write(indexBuffer);
+            indexChannel.write(indexBuffer, filePosition);
             offsetIndex.put(offset, filePosition);
         } catch (IOException ex) {
             // think about how to handle this

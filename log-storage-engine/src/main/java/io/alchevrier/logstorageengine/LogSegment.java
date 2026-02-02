@@ -7,6 +7,7 @@ package io.alchevrier.logstorageengine;
  */
 public interface LogSegment {
     long baseOffset();
+    long lastOffset();
     void append(long offset, byte[] data);
     byte[] read(long offset);
     long size();

@@ -9,4 +9,6 @@ package io.alchevrier.logstorageengine;
 public interface Log {
     long append(byte[] data);
     byte[] read(long offset);
+    void flush();
+    void close();
 }

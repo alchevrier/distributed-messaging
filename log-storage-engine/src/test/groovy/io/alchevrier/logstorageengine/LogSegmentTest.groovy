@@ -26,6 +26,12 @@ class LogSegmentTest extends Specification {
         segment?.close()  // Safe close even if test fails
     }
 
+    def "empty log last offset should be the base offset minus 1"() {
+        when: "no write happened"
+        then: "should have lastOffset equals to the base offset minus 1"
+            segment.lastOffset() == -1
+    }
+
     def "appending to an empty log then should yield size according to entry"() {
         when: "writing data to the log segment then flushing/closing"
             segment.append(0, "Hello World!".getBytes())
@@ -82,6 +88,8 @@ class LogSegmentTest extends Specification {
                 getLong() == 0
                 !hasRemaining()
             }
+
+            segment.lastOffset() == 0
     }
 
     def "appending to a log file should be accessible by a fresh log segment"() {
@@ -95,6 +103,22 @@ class LogSegmentTest extends Specification {
         then: "log file information should be established as persisted"
             result == "Hello World!"
             segment.size() == 4 + 8 + 12
+            segment.lastOffset() == 0
+    }
+
+    def "appending to an existing log segment should not overwrite existing data"() {
+        when: "writing data to the log segment and flushing/closing then write to an existing new log segment"
+            segment.append(0, "Hello World!".getBytes())
+            segment.flush()
+            segment.close()
+            segment = new LogSegmentImpl(segmentPath, 1) // starting from the next offset
+            segment.append(1, "This should be accessible".getBytes())
+            def result = new String(segment.read(1))
+
+        then: "log file information should be established as persisted"
+            result == "This should be accessible"
+            segment.size() == (4 + 8 + 12) + 4 + 8 + 25
+            segment.lastOffset() == 1
     }
 
     def "appending multiple times to a log file should be accessible"() {
@@ -114,6 +138,7 @@ class LogSegmentTest extends Specification {
             secondResult == "Second message"
             thirdResult == "Will it work you think?"
             segment.size() == (4 + 8 + 12) + (4 + 8 + 14) + (4 + 8 + 23)
+            segment.lastOffset() == 2
     }
 
     def "multiple threads should have no issue reading at the same time"() {
