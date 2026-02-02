@@ -17,11 +17,11 @@ class LogTest extends Specification {
     long FLUSH_INTERVAL = 1
 
     Log log
-    String segmentPath
+    String logPath
 
     def setup() {
-        segmentPath = tempDir.resolve("test-segment").toString()
-        log = new LogImpl(segmentPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
+        logPath = tempDir.resolve("test-log").toString()
+        log = new LogImpl(logPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
     }
 
     def cleanup() {
@@ -40,12 +40,12 @@ class LogTest extends Specification {
             log.append("Hello World".getBytes())
             log.append("HelloW".getBytes())
         then: "should have log rotated"
-            Files.list(Paths.get(segmentPath)).toArray().length == 4 // 2 * .index + 2 * .log
+            Files.list(Paths.get(logPath)).toArray().length == 4 // 2 * .index + 2 * .log
             // checking file name of rotated log
-            Files.list(Paths.get(segmentPath)).anyMatch { it.toString().endsWith("00000000000000000000.index")  }
-            Files.list(Paths.get(segmentPath)).anyMatch { it.toString().endsWith("00000000000000000000.log")  }
-            Files.list(Paths.get(segmentPath)).anyMatch { it.toString().endsWith("00000000000000000001.index")  }
-            Files.list(Paths.get(segmentPath)).anyMatch { it.toString().endsWith("00000000000000000001.log")  }
+            Files.list(Paths.get(logPath)).anyMatch { it.toString().endsWith("00000000000000000000.index")  }
+            Files.list(Paths.get(logPath)).anyMatch { it.toString().endsWith("00000000000000000000.log")  }
+            Files.list(Paths.get(logPath)).anyMatch { it.toString().endsWith("00000000000000000001.index")  }
+            Files.list(Paths.get(logPath)).anyMatch { it.toString().endsWith("00000000000000000001.log")  }
     }
 
     def "appending within the segment size then should not rotate to new segment"() {
@@ -53,10 +53,10 @@ class LogTest extends Specification {
             log.append("Hello".getBytes())
             log.append("Wo".getBytes())
         then: "should not have rotated log"
-            Files.list(Paths.get(segmentPath)).toArray().length == 2 // 1 * .index + 1 * .log
+            Files.list(Paths.get(logPath)).toArray().length == 2 // 1 * .index + 1 * .log
             // checking file name of rotated log
-            Files.list(Paths.get(segmentPath)).anyMatch { it.toString().endsWith("00000000000000000000.index")  }
-            Files.list(Paths.get(segmentPath)).anyMatch { it.toString().endsWith("00000000000000000000.log") }
+            Files.list(Paths.get(logPath)).anyMatch { it.toString().endsWith("00000000000000000000.index")  }
+            Files.list(Paths.get(logPath)).anyMatch { it.toString().endsWith("00000000000000000000.log") }
     }
 
     def "appending more than the segment size  then read"() {
@@ -83,7 +83,7 @@ class LogTest extends Specification {
             log.append("HelloW".getBytes())
 
             log.close()
-            log = new LogImpl(segmentPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
+            log = new LogImpl(logPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
         then: "should be able to read all offsets anyway"
             new String(log.read(1)) == "HelloW"
             new String(log.read(0)) == "Hello World"
@@ -95,7 +95,7 @@ class LogTest extends Specification {
             log.append("HelloW".getBytes())
 
             log.close()
-            log = new LogImpl(segmentPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
+            log = new LogImpl(logPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
             log.append("Should be appended at the right place".getBytes())
         then: "should be able to read all offsets anyway"
             new String(log.read(1)) == "HelloW"
@@ -109,7 +109,7 @@ class LogTest extends Specification {
             log.append("HelloW".getBytes())
 
             log.close()
-            log = new LogImpl(segmentPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
+            log = new LogImpl(logPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
 
         when: "1000 virtual threads read the same offset concurrently"
             def executor = Executors.newVirtualThreadPerTaskExecutor()
