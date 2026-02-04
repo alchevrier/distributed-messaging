@@ -1,18 +1,18 @@
 package io.alchevrier.broker
 
-import io.alchevrier.broker.api.AdminApi
 import io.alchevrier.broker.api.AdminApiDelegate
+import io.alchevrier.broker.api.AdminApiDelegateImpl
 import io.alchevrier.logstorageengine.LogManager
 import org.springframework.http.HttpStatusCode
 import spock.lang.Specification
 
 class AdminApiDelegateTest extends Specification {
-    AdminApi objectUnderTest
+    AdminApiDelegate objectUnderTest
     LogManager mockManager
 
     def setup() {
         mockManager = Mock(LogManager)
-        objectUnderTest = new AdminApiDelegate(mockManager)
+        objectUnderTest = new AdminApiDelegateImpl(mockManager)
     }
 
     def "flushing should delegate call to the logManager flushing mechanism"() {

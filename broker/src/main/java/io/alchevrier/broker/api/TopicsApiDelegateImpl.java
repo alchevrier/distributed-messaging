@@ -13,11 +13,11 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedList;
 
 @Component
-public class TopicsApiDelegate implements TopicsApi {
+public class TopicsApiDelegateImpl implements TopicsApiDelegate {
 
     private final LogManager logManager;
 
-    public TopicsApiDelegate(@Autowired LogManager logManager) {
+    public TopicsApiDelegateImpl(@Autowired LogManager logManager) {
         this.logManager = logManager;
     }
 
@@ -26,11 +26,17 @@ public class TopicsApiDelegate implements TopicsApi {
         var consumedMessage = new LinkedList<Message>();
 
         for (var i = offset; i < batchSize + offset; i++) {
-            var newMessage = new Message();
-            newMessage.setOffset(i);
-            newMessage.setData(logManager.read(new Topic(topic), i));
+            try {
+                var newMessage = new Message();
+                newMessage.setOffset(i);
+                var data = logManager.read(new Topic(topic), i);
+                newMessage.setData(data);
 
-            consumedMessage.add(newMessage);
+                consumedMessage.add(newMessage);
+            } catch (RuntimeException ex) {
+                // breaking the loop meaning no over messages past the previous offset
+                break;
+            }
         }
 
         var result = new ConsumeResponse();

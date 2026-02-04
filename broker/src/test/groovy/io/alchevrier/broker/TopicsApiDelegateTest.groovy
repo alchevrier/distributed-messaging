@@ -1,7 +1,7 @@
 package io.alchevrier.broker
 
-import io.alchevrier.broker.api.TopicsApi
 import io.alchevrier.broker.api.TopicsApiDelegate
+import io.alchevrier.broker.api.TopicsApiDelegateImpl
 import io.alchevrier.broker.model.ProduceRequest
 import io.alchevrier.logstorageengine.LogManager
 import io.alchevrier.message.Topic
@@ -11,11 +11,11 @@ import spock.lang.Specification
 class TopicsApiDelegateTest extends Specification {
     LogManager mockManager
     Topic testTopic
-    TopicsApi objectUnderTest
+    TopicsApiDelegate objectUnderTest
 
     def setup() {
         mockManager = Mock(LogManager)
-        objectUnderTest = new TopicsApiDelegate(mockManager)
+        objectUnderTest = new TopicsApiDelegateImpl(mockManager)
         testTopic = new Topic("hello")
     }
 
