@@ -1,13 +1,68 @@
 plugins {
+    id 'java'
+    id 'groovy'
     id 'buildlogic.java-application-conventions'
+    id 'org.springframework.boot' version '4.0.2'
+    id 'org.openapi.generator' version '7.17.0'
 }
 
+apply plugin: 'io.spring.dependency-management'
+
 dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1'
     implementation 'org.apache.commons:commons-text'
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.8'
     implementation project(':message')
+    implementation project(':log-storage-engine')
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.spockframework:spock-core:2.4-groovy-5.0'
+    testImplementation 'org.spockframework:spock-spring:2.4-groovy-5.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+openApiGenerate {
+    generatorName = "spring"
+    inputSpec = "$rootDir/broker/src/main/resources/openapi/broker.yaml"
+    outputDir = "$buildDir/generated"
+    apiPackage = "io.alchevrier.broker.api"
+    modelPackage = "io.alchevrier.broker.model"
+    configOptions = [
+            useSpringBoot3: "true",
+            library : "spring-boot",
+            dateLibrary : "java8",
+            interfaceOnly : "false",
+            useJakartaEe : "true"
+    ]
+}
+
+compileJava.dependsOn tasks.openApiGenerate
+
+sourceSets {
+    main {
+        java {
+            srcDirs "$buildDir/generated/src/main/java"
+        }
+    }
 }
 
 application {
     // Define the main class for the application.
     mainClass = 'io.alchevrier.broker.BrokerApplication'
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
+}
+
+test {
+    useJUnitPlatform()
+
+    testLogging {
+        events "started", "passed", "skipped", "failed"
+    }
 }

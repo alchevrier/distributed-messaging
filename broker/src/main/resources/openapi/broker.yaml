@@ -1,0 +1,113 @@
+openapi: 3.0.0
+info:
+  title: Distributed Messaging API
+  version: 1.0.0
+tags:
+  - name: topics
+    description: Operations regarding the consumption and production of messages to a given topic
+  - name: admin
+    description: Operations regarding admin work, not meant to be used by the client explicitly
+paths:
+  /topics/{topic}/produce:
+    post:
+      summary: Appending the given message to the end of the given topic
+      tags:
+        - topics
+      operationId: produce
+      parameters:
+        - name: topic
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProduceRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProduceResponse'
+
+  /topics/{topic}/consume:
+    get:
+      summary: Consuming the provided offset for the given topic
+      tags:
+        - topics
+      operationId: consume
+      parameters:
+        - name: topic
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: batchSize
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumeResponse'
+
+  /admin/flush:
+    post:
+      summary: Flushing all topics
+      tags:
+        - admin
+      operationId: flush
+      responses:
+        '204':
+          description: Flushed
+
+components:
+  schemas:
+    ProduceRequest:
+      type: object
+      properties:
+        data:
+          type: string
+          format: byte
+    ProduceResponse:
+      type: object
+      properties:
+        offset:
+          type: integer
+          format: int64
+    ConsumeResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+    Message:
+      type: object
+      properties:
+        offset:
+          type: integer
+          format: int64
+        data:
+          type: string
+          format: byte
+    Topic:
+      type: object
+      properties:
+        name:
+          type: string

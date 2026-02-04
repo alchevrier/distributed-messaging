@@ -1,0 +1,4 @@
+broker:
+  log-directory: ./tmp/broker/logs
+  max-segment-size: 1000000
+  flush-interval: 50000

@@ -33,3 +33,5 @@ build
 .kotlin
 
 **/tmp
+
+.idea
