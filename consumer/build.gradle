@@ -5,6 +5,14 @@ plugins {
     id 'org.springframework.boot' version '4.0.2'
 }
 
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+}
+
 apply plugin: 'io.spring.dependency-management'
 
 dependencies {
