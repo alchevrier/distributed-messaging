@@ -1,0 +1,5 @@
+server:
+  port: 9097
+
+client:
+  brokerUrl: http://localhost:8080

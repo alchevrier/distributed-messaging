@@ -10,9 +10,7 @@ apply plugin: 'io.spring.dependency-management'
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1'
     implementation 'org.apache.commons:commons-text'
-    implementation 'org.openapitools:jackson-databind-nullable:0.2.8'
     implementation project(':message')
     implementation project(':log-storage-engine')
 
@@ -22,24 +20,6 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
-
-openApiGenerate {
-    generatorName = "spring"
-    inputSpec = "$rootDir/broker/src/main/resources/openapi/broker.yaml"
-    outputDir = "$buildDir/generated"
-    apiPackage = "io.alchevrier.broker.api"
-    modelPackage = "io.alchevrier.broker.model"
-    configOptions = [
-            useSpringBoot3: "true",
-            library : "spring-boot",
-            dateLibrary : "java8",
-            interfaceOnly : "false",
-            useJakartaEe : "true",
-            delegatePattern : "true"
-    ]
-}
-
-compileJava.dependsOn tasks.openApiGenerate
 
 sourceSets {
     main {

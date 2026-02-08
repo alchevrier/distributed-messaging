@@ -1,6 +1,6 @@
 package io.alchevrier.broker
 
-import io.alchevrier.broker.model.ConsumeResponse
+import io.alchevrier.message.ConsumeResponse
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
@@ -80,9 +80,9 @@ class BrokerItTest extends Specification {
         then:
             response.status == 200
             def result = objectMapper.readValue(response.contentAsString, ConsumeResponse)
-            result.messages.size() == 1
-            result.messages[0].offset == 0
-            new String(result.messages[0].data) == "Hello"
+            result.messages().size() == 1
+            result.messages()[0].offset() == 0
+            new String(result.messages()[0].data()) == "Hello"
     }
 
     def "test produce a lot more messages concurrently endpoint"() {
@@ -116,10 +116,10 @@ class BrokerItTest extends Specification {
         then:
             response.status == 200
             def result = objectMapper.readValue(response.contentAsString, ConsumeResponse)
-            result.messages.size() == 100
+            result.messages().size() == 100
             for (i in 0..99) {
-                result.messages[i].offset == i
-                new String(result.messages[i].data) == "Hello"
+                result.messages()[i].offset() == i
+                new String(result.messages()[i].data()) == "Hello"
             }
     }
 }

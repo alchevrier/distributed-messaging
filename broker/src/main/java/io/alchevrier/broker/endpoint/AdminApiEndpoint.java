@@ -1,20 +1,21 @@
-package io.alchevrier.broker.api;
+package io.alchevrier.broker.endpoint;
 
 import io.alchevrier.logstorageengine.LogManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-@Component
-public class AdminApiDelegateImpl implements AdminApiDelegate {
+@RestController
+public class AdminApiEndpoint {
 
     private final LogManager logManager;
 
-    public AdminApiDelegateImpl(@Autowired LogManager logManager) {
+    public AdminApiEndpoint(@Autowired LogManager logManager) {
         this.logManager = logManager;
     }
 
-    @Override
+    @PostMapping("/admin/flush")
     public ResponseEntity<Void> flush() {
         logManager.flush();
         return ResponseEntity.noContent().build();

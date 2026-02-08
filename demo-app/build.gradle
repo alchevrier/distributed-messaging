@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+    id 'buildlogic.java-application-conventions'
+    id 'org.springframework.boot' version '4.0.2'
+}
+
+apply plugin: 'io.spring.dependency-management'
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    implementation project(':consumer')
+    implementation project(':producer')
+    implementation project(':message')
+}
+
+application {
+    // Define the main class for the application.
+    mainClass = 'io.alchevrier.demo.DemoApplication'
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
+}
+
+test {
+    useJUnitPlatform()
+
+    testLogging {
+        events "started", "passed", "skipped", "failed"
+    }
+}

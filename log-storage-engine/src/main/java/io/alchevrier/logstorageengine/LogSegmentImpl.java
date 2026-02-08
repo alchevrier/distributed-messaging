@@ -60,9 +60,13 @@ public class LogSegmentImpl implements LogSegment {
             while (indexChannel.read(buffer) > 0) {
                 buffer.flip();
 
-                long offset = buffer.getLong();
-                long position = buffer.getLong();
-                loadedOffsetIndex.put(offset, position);
+                // Only parse if we read a complete entry (16 bytes)
+                if (buffer.remaining() == 16) {
+                    long offset = buffer.getLong();
+                    long position = buffer.getLong();
+                    loadedOffsetIndex.put(offset, position);
+                }
+                // Partial entry means corrupt/incomplete write - skip it
 
                 buffer.clear();
             }
@@ -105,7 +109,7 @@ public class LogSegmentImpl implements LogSegment {
             indexBuffer.putLong(filePosition);
             indexBuffer.flip();
 
-            indexChannel.write(indexBuffer, filePosition);
+            indexChannel.write(indexBuffer, indexChannel.size());
             offsetIndex.put(offset, filePosition);
         } catch (IOException ex) {
             // think about how to handle this

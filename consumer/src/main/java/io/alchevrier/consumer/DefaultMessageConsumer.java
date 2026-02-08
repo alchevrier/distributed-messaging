@@ -9,15 +9,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class DefaultMessageConsumer implements MessageConsumer {
 
-    private final MessageConsumerClient client;
+    private final MessageConsumerClient consumerClient;
 
-    public DefaultMessageConsumer(@Autowired MessageConsumerClient client) {
-        this.client = client;
+    public DefaultMessageConsumer(@Autowired MessageConsumerClient consumerClient) {
+        this.consumerClient = consumerClient;
     }
 
     @Override
     public ConsumeResponse consume(Topic topic, long startOffset, long batchSize) {
-        var result = client.consume(topic.name(), startOffset, batchSize);
+        var result = consumerClient.consume(topic.name(), startOffset, batchSize);
         if (result.getStatusCode() != HttpStatusCode.valueOf(200)) {
             throw new RuntimeException(String.format("Could not consume at topic %s startOffset %s and batchSize %s", topic, startOffset, batchSize));
         }

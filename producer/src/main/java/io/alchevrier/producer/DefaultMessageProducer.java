@@ -7,14 +7,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class DefaultMessageProducer implements MessageProducer {
 
-    private final MessageProducerClient client;
+    private final MessageProducerClient producerClient;
 
-    public DefaultMessageProducer(MessageProducerClient client) {
-        this.client = client;
+    public DefaultMessageProducer(MessageProducerClient producerClient) {
+        this.producerClient = producerClient;
     }
 
     @Override
     public ProduceResponse produce(ProduceRequest produceRequest) {
-        return client.produce(produceRequest.topic().name(), produceRequest);
+        return producerClient.produce(produceRequest.topic().name(), produceRequest);
     }
 }

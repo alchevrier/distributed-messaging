@@ -16,7 +16,7 @@ class SmokeClientTest extends Specification {
     ApplicationContext context
 
     @Autowired
-    MessageConsumerClient client
+    MessageConsumerClient consumerClient
 
     @Autowired
     MessageConsumer messageConsumer
@@ -24,7 +24,7 @@ class SmokeClientTest extends Specification {
     def "should load full context without any missing bean or property error"() {
         expect:
             context != null
-            client != null
+            consumerClient != null
             messageConsumer != null
     }
 }

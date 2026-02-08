@@ -12,15 +12,15 @@ import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 public class ConsumerConfiguration {
 
     @Bean
-    public MessageConsumerClient client(RestClient restClient) {
+    public MessageConsumerClient consumerClient(RestClient consumerRestClient) {
         return HttpServiceProxyFactory.builder()
-                .exchangeAdapter(RestClientAdapter.create(restClient))
+                .exchangeAdapter(RestClientAdapter.create(consumerRestClient))
                 .build()
                 .createClient(MessageConsumerClient.class);
     }
 
     @Bean
-    public RestClient restClient(@Value("${client.brokerUrl}") String brokerUrl) {
+    public RestClient consumerRestClient(@Value("${client.brokerUrl}") String brokerUrl) {
         return RestClient.builder()
                 .baseUrl(brokerUrl)
                 .build();

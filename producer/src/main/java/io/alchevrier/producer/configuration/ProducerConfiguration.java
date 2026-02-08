@@ -12,15 +12,15 @@ import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 public class ProducerConfiguration {
 
     @Bean
-    public MessageProducerClient client(RestClient restClient) {
+    public MessageProducerClient producerClient(RestClient producerRestClient) {
         return HttpServiceProxyFactory.builder()
-                .exchangeAdapter(RestClientAdapter.create(restClient))
+                .exchangeAdapter(RestClientAdapter.create(producerRestClient))
                 .build()
                 .createClient(MessageProducerClient.class);
     }
 
     @Bean
-    public RestClient restClient(@Value("${client.brokerUrl}") String brokerUrl) {
+    public RestClient producerRestClient(@Value("${client.brokerUrl}") String brokerUrl) {
         return RestClient.builder()
                 .baseUrl(brokerUrl)
                 .build();

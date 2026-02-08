@@ -11,4 +11,4 @@ plugins {
 }
 
 rootProject.name = 'distributed-messaging'
-include('broker', 'log-storage-engine', 'message', 'consumer', 'producer')
+include('broker', 'log-storage-engine', 'message', 'consumer', 'producer', 'demo-app')

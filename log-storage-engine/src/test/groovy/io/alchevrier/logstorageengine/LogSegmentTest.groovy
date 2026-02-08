@@ -121,6 +121,22 @@ class LogSegmentTest extends Specification {
             segment.lastOffset() == 1
     }
 
+    def "multiple messages survive restart"() {
+        when:
+            segment.append(0, "First".getBytes())
+            segment.append(1, "Second".getBytes())
+            segment.append(2, "Third".getBytes())
+            segment.flush()
+            segment.close()
+
+            segment = new LogSegmentImpl(segmentPath, 0)
+
+        then:
+            new String(segment.read(0)) == "First"
+            new String(segment.read(1)) == "Second"  // This would have failed!
+            new String(segment.read(2)) == "Third"
+    }
+
     def "appending multiple times to a log file should be accessible"() {
         when: "writing data to the log segment and flushing/closing"
             segment.append(0, "Hello World!".getBytes())
