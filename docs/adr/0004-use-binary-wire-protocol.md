@@ -20,14 +20,16 @@ Protocol options:
 ## Decision
 We will use a **custom binary protocol** for broker-client communication as the **long-term goal**.
 
-**Phase 1 Implementation**: For Phase 1, we will use **REST API with OpenAPI specification** and migrate to binary protocol in a future phase.
+**Phase 1 Implementation**: For Phase 1, we will use **REST API with classic Spring Boot controllers** and migrate to binary protocol in a future phase.
 
 **Rationale for phased approach**:
 - Current team lacks hands-on experience implementing custom binary protocols from scratch
 - Would require significant learning overhead that would delay Phase 1 delivery
-- REST + OpenAPI allows focus on core distributed systems concepts (log storage, replication, partitioning)
+- REST allows focus on core distributed systems concepts (log storage, replication, partitioning)
 - Can iterate faster during initial development and learning
 - Binary protocol can be added as an optimization once fundamentals are proven
+- Classic Spring Boot REST approach avoids OpenAPI code generation complexity and dependency bloat
+- Direct use of our designed message DTOs without needing mappers or additional serialization layers
 
 Binary protocol structure (future):
 ```
@@ -76,14 +78,28 @@ Response:
 ```
 
 #### FETCH Request
-```Phase 1: REST API with OpenAPI
+```
+[correlationId: 4][topic_len: 4][topic: var][offset: 8][batch_size: 4]
+```
+
+## Phase 1: REST API with Spring Boot
 **Implementation details**:
-- Use OpenAPI 3.0 specification to define API contract
-- Generate server endpoints from OpenAPI spec
-- JSON for message serialization
-- Standard HTTP verbs (POST for produce, GET for fetch/metadata)
-- Easy debugging with curl, Postman, browser dev tools
-- Well-understood by team, faster implementation
+- Use `@RestController` with standard Spring MVC annotations
+- JSON for message serialization (Jackson)
+- Standard HTTP verbs (POST for produce, GET for fetch/consume)
+- Direct use of message DTOs (Topic, Message, ProduceRequest) without code generation
+- REST API defines clear semantics that will map to binary protocol
+- Implement binary protocol handlers alongside REST (dual-protocol support)
+- Gradually migrate clients to binary
+- Eventually deprecate REST endpoints
+- Spring HTTP Interface clients can be replaced with custom binary protocol clieaster build times
+
+**API Endpoints**:
+```
+POST /topics/{topic}/produce      # Produce messages
+GET  /topics/{topic}/consume      # Consume messages (offset, batchSize params)
+POST /admin/flush                 # Force flush to disk
+```
 
 **Migration path to binary**:
 - Keep OpenAPI spec as documentation of API semantics

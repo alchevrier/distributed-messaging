@@ -31,38 +31,41 @@ All architectural decisions are documented using Architecture Decision Records (
 
 ```
 distributed-messaging/
-├── message/              # Common DTOs
-├── log-storage-engine/   # Core storage layer
-├── endpoint/             # REST API (Spring Boot)
-├── consumer/             # Consumer client library
-├── producer/             # Producer client library
+├── message/              # Common DTOs (Topic, Message, ProduceRequest)
+├── log-storage-engine/   # Core storage layer (LogSegment, Log, LogManager)
+├── broker/               # REST API broker (Spring Boot)
+├── consumer/             # Consumer client library (Spring HTTP Interface)
+├── producer/             # Producer client library (Spring HTTP Interface)
+├── demo-app/             # End-to-end demo application
 └── docs/                 # Documentation & ADRs
 ```
 
 See [ADR-0008](docs/adr/0008-phase-1-project-structure.md) for detailed architecture diagram.
 
-## Current Phase: Phase 1 - Foundation
+## Current Phase: Phase 1 - Foundation ✅
 
 **Goals:**
 - Single broker, single partition
 - Basic produce/consume functionality
 - File-based append-only log storage
-- REST API with OpenAPI specification
+- REST API
 
 **What's implemented:**
-- [ ] Log storage engine with NIO
-- [ ] REST API endpoints
-- [ ] Producer client
-- [ ] Consumer client
-- [ ] OpenAPI specification
+- ✅ Log storage engine with NIO (LogSegment, Log, LogManager)
+- ✅ REST API broker with Spring Boot
+- ✅ Producer client library (declarative HTTP interface)
+- ✅ Consumer client library (declarative HTTP interface)
+- ✅ Demo application with end-to-end flow
+- ✅ Graceful shutdown and crash recovery
 
 ## Tech Stack
 
 - **Language**: Java 25 (Virtual Threads)
 - **Build Tool**: Gradle (multi-module)
-- **Framework**: Spring Boot (Phase 1 only)
-- **API**: REST + OpenAPI (migrating to binary protocol later)
-- **Storage**: NIO FileChannel, append-only logs
+- **Framework**:(migrating to binary protocol in Phase 2)
+- **HTTP Clients**: Spring HTTP Interface (@GetExchange/@PostExchange)
+- **Storage**: NIO FileChannel, append-only logs with index files
+- **Testing**: Spock (Groovy) for unit tests, MockMvc for integration testsappend-only logs
 - **Testing**: JUnit 5 + AssertJ
 
 ## Getting Started
@@ -85,12 +88,33 @@ See [ADR-0008](docs/adr/0008-phase-1-project-structure.md) for detailed architec
 ```
 
 ### Running
-
+**Start the broker:**
 ```bash
-# Start the broker
-./gradlew :endpoint:bootRun
+./gradlew :broker:bootRun
+```
 
-# Producer example (TBD)
+The broker will start on `http://localhost:8080` with log storage in `./data/logs/`
+
+**Run the demo application:**
+```bash
+# In another terminal
+./gradlew :demo-app:bootRun
+```
+
+The demo app exposes endpoints on `http://localhost:8081` and will use a default topic 'Hello', offset 0 and batch size 100:
+- `POST /produce` - Produce messages to the broker (defaulted to 'Hi + LocalDateTime.now()')
+- `GET /consume?topic=<name>&offset=<num>&batchSize=<size>` - Consume messages
+
+**Example usage:**
+```bash
+# Produce a message
+curl -X POST http://localhost:8081/produce
+
+# Consume messages (offset 0, batch size 100)
+curl "http://localhost:8081/consume
+
+# Flush logs to disk
+curl -X POST http://localhost:8080/admin/flush
 # Consumer example (TBD)
 ```
 
