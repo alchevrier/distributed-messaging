@@ -21,6 +21,8 @@ Architecture Decision Records document the key architectural decisions made duri
 | [0006](0006-phased-implementation-approach.md) | Phased Implementation Approach | Accepted |
 | [0007](0007-choose-gradle-as-build-tool.md) | Choose Gradle as Build Tool | Accepted |
 | [0008](0008-phase-1-project-structure.md) | Phase 1 Project Structure | Accepted |
+| [0009](0009-use-binary-wire-protocol.md) | Use Binary Wire Protocol (Phase 2) | Accepted |
+| [0010](0010-phase-2-project-structure.md) | Phase 2 Project Structure | Accepted |
 
 ## ADR Lifecycle
 
