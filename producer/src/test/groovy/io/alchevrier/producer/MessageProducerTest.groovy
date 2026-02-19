@@ -16,7 +16,7 @@ class MessageProducerTest extends Specification {
 
     def "provided a producer response then should forward it to the client"() {
         given:
-            def sentResponse = new ProduceResponse(1, new Topic("hello"), "this is an error")
+            def sentResponse = new ProduceResponse(1, "this is an error")
             def produceRequest = new ProduceRequest(new Topic("hello"), "Hi".getBytes())
         when:
             def result = objectUnderTest.produce(produceRequest)

@@ -1,6 +1,6 @@
 package io.alchevrier.message;
 
-public record ProduceResponse(Long offset, String error) {
+public record FlushResponse(String error) {
     public boolean isError() {
         return this.error != null;
     }

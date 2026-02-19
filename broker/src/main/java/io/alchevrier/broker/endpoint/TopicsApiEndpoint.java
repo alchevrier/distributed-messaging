@@ -37,7 +37,7 @@ public class TopicsApiEndpoint {
             }
         }
 
-        var result = new ConsumeResponse(consumedMessage, lastOffset + 1);
+        var result = new ConsumeResponse(consumedMessage, lastOffset + 1, null);
         return ResponseEntity.ok(result);
     }
 
@@ -48,6 +48,6 @@ public class TopicsApiEndpoint {
     ) {
         var topicObj = new Topic(topic);
         var offset = logManager.append(topicObj, produceRequest.data());
-        return ResponseEntity.ok(new ProduceResponse(offset, topicObj, null));
+        return ResponseEntity.ok(new ProduceResponse(offset, null));
     }
 }
