@@ -50,6 +50,7 @@ public class ByteBufferSerializer {
             buffer.put(CONSUME_RESPONSE);
             buffer.put((byte) 1);
             buffer.putLong(consumeResponse.nextOffset());
+            buffer.putInt(consumeResponse.messages().size());
 
             for (int i = 0; i < consumeResponse.messages().size(); i++) {
                 var message = consumeResponse.messages().get(i);

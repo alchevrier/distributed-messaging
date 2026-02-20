@@ -27,7 +27,9 @@ class ByteBufferSerializerTest extends Specification {
             def request = new ProduceRequest(new Topic("hello"), "Hello World".getBytes())
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(request)
-            def result = anotherObjectUnderTest.deserializeProduceRequest(toBytes)
+            def result = anotherObjectUnderTest.deserializeProduceRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the producer request"
             result.topic() == request.topic()
             new String(result.data()) == new String(request.data())
@@ -38,7 +40,9 @@ class ByteBufferSerializerTest extends Specification {
             def response = new ProduceResponse(8, null)
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
-            def result = anotherObjectUnderTest.deserializeProduceResponse(toBytes)
+            def result = anotherObjectUnderTest.deserializeProduceResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the producer response"
             response == result
     }
@@ -48,7 +52,9 @@ class ByteBufferSerializerTest extends Specification {
             def response = new ProduceResponse(null, "Could not persist message")
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
-            def result = anotherObjectUnderTest.deserializeProduceResponse(toBytes)
+            def result = anotherObjectUnderTest.deserializeProduceResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the producer response"
             response == result
     }
@@ -58,7 +64,9 @@ class ByteBufferSerializerTest extends Specification {
             def request = new ConsumeRequest(new Topic("hello-topic"), 18, 1000)
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(request)
-            def result = anotherObjectUnderTest.deserializeConsumeRequest(toBytes)
+            def result = anotherObjectUnderTest.deserializeConsumeRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match a consume request"
             request == result
     }
@@ -68,7 +76,9 @@ class ByteBufferSerializerTest extends Specification {
             def response = new ConsumeResponse(null, null, "Could not consume as expected")
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
-            def result = anotherObjectUnderTest.deserializeConsumeResponse(toBytes)
+            def result = anotherObjectUnderTest.deserializeConsumeResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the result"
             response == result
     }
@@ -82,7 +92,9 @@ class ByteBufferSerializerTest extends Specification {
             )
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
-            def result = anotherObjectUnderTest.deserializeConsumeResponse(toBytes)
+            def result = anotherObjectUnderTest.deserializeConsumeResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the result"
             response.nextOffset() == result.nextOffset()
             response.error() == result.error()
@@ -98,7 +110,9 @@ class ByteBufferSerializerTest extends Specification {
             def request = new FlushRequest()
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(request)
-            def result = anotherObjectUnderTest.deserializeFlushRequest(toBytes)
+            def result = anotherObjectUnderTest.deserializeFlushRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the result"
             request == result
     }
@@ -108,7 +122,9 @@ class ByteBufferSerializerTest extends Specification {
             def response = new FlushResponse("Failed to flush")
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
-            def result = anotherObjectUnderTest.deserializeFlushResponse(toBytes)
+            def result = anotherObjectUnderTest.deserializeFlushResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the result"
             response == result
     }
@@ -118,7 +134,9 @@ class ByteBufferSerializerTest extends Specification {
             def response = new FlushResponse(null)
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
-            def result = anotherObjectUnderTest.deserializeFlushResponse(toBytes)
+            def result = anotherObjectUnderTest.deserializeFlushResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
         then: "should match the result"
             response == result
     }

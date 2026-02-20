@@ -3,16 +3,13 @@ package io.alchevrier.message.serializer;
 import io.alchevrier.message.*;
 
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
+import java.util.ArrayList;
 
 import static io.alchevrier.message.serializer.MessageType.*;
 
 public class ByteBufferDeserializer {
     public ConsumeRequest deserializeConsumeRequest(byte[] source) {
         var buffer = ByteBuffer.wrap(source);
-
-        // discarding the length as it meant for transport
-        buffer.getInt();
 
         var type = buffer.get();
         if (type != CONSUME_REQUEST) {
@@ -32,8 +29,6 @@ public class ByteBufferDeserializer {
     public ConsumeResponse deserializeConsumeResponse(byte[] source) {
         var buffer = ByteBuffer.wrap(source);
 
-        var allLength = buffer.getInt();
-
         var type = buffer.get();
         if (type != CONSUME_RESPONSE) {
             throw new IllegalArgumentException("Could not deserialize to ConsumeRequest as it is of type: " + type);
@@ -49,12 +44,10 @@ public class ByteBufferDeserializer {
         }
 
         var nextOffset = buffer.getLong();
+        var messageCount = buffer.getInt();
+        var messages = new ArrayList<Message>(messageCount);
 
-        var messages = new LinkedList<Message>();
-
-        var lengthLeft = allLength - 4 - 1 - 1 - 8 - 4;
-
-        while (lengthLeft > 0) {
+        while (messageCount > 0) {
             var msgLength = buffer.getInt();
             var offset = buffer.getLong();
             var msgBytes = new byte[msgLength];
@@ -62,7 +55,7 @@ public class ByteBufferDeserializer {
 
             messages.add(new Message(offset, msgBytes));
 
-            lengthLeft = lengthLeft - 4 - 8 - msgLength;
+            messageCount--;
         }
 
         return new ConsumeResponse(messages, nextOffset, null);
@@ -70,9 +63,6 @@ public class ByteBufferDeserializer {
 
     public ProduceRequest deserializeProduceRequest(byte[] source) {
         var buffer = ByteBuffer.wrap(source);
-
-        // discarding the length as it meant for transport
-        buffer.getInt();
 
         var type = buffer.get();
         if (type != PRODUCE_REQUEST) {
@@ -93,9 +83,6 @@ public class ByteBufferDeserializer {
     public ProduceResponse deserializeProduceResponse(byte[] source) {
         var buffer = ByteBuffer.wrap(source);
 
-        // discarding the length as it meant for transport
-        buffer.getInt();
-
         var type = buffer.get();
         if (type != PRODUCE_RESPONSE) {
             throw new IllegalArgumentException("Could not deserialize to ProduceRequest as it is of type: " + type);
@@ -115,9 +102,6 @@ public class ByteBufferDeserializer {
     public FlushRequest deserializeFlushRequest(byte[] source) {
         var buffer = ByteBuffer.wrap(source);
 
-        // discarding the length as it meant for transport
-        buffer.getInt();
-
         var type = buffer.get();
         if (type != FLUSH_REQUEST) {
             throw new IllegalArgumentException("Could not deserialize to ProduceRequest as it is of type: " + type);
@@ -128,9 +112,6 @@ public class ByteBufferDeserializer {
 
     public FlushResponse deserializeFlushResponse(byte[] source) {
         var buffer = ByteBuffer.wrap(source);
-
-        // discarding the length as it meant for transport
-        buffer.getInt();
 
         var type = buffer.get();
         if (type != FLUSH_RESPONSE) {
