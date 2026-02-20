@@ -65,7 +65,7 @@ public class ByteBufferSerializer {
 
     public byte[] serialize(ProduceRequest produceRequest) {
         var topicName = produceRequest.topic().name().getBytes(StandardCharsets.UTF_8);
-        var length = 4 + 1 + 4 + topicName.length * 4 + produceRequest.data().length * 4;
+        var length = 4 + 1 + 4 + topicName.length + 4 + produceRequest.data().length;
 
         var buffer = ByteBuffer.allocate(length);
         buffer.putInt(length);
@@ -83,7 +83,7 @@ public class ByteBufferSerializer {
         var errorLength = produceResponse.isError() ? errorBytes.length : 0;
         var offsetLength = produceResponse.isError() ? 0 : 8;
 
-        var length = 4 + 1 + 1 + errorLength + errorBytes.length * 4 + offsetLength;
+        var length = 4 + 1 + 1 + errorLength + errorBytes.length + offsetLength;
 
         var buffer = ByteBuffer.allocate(length);
         buffer.putInt(length);
