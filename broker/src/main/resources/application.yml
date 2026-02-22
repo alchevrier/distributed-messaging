@@ -2,3 +2,7 @@ broker:
   log-directory: ./tmp/broker/logs
   max-segment-size: 1000000
   flush-interval: 50000
+
+binary:
+  server:
+    port: 9180

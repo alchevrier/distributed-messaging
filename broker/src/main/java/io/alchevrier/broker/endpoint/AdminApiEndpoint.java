@@ -1,7 +1,6 @@
 package io.alchevrier.broker.endpoint;
 
-import io.alchevrier.logstorageengine.LogManager;
-import org.springframework.beans.factory.annotation.Autowired;
+import io.alchevrier.broker.service.TopicsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -9,15 +8,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class AdminApiEndpoint {
 
-    private final LogManager logManager;
+    private final TopicsService topicsService;
 
-    public AdminApiEndpoint(@Autowired LogManager logManager) {
-        this.logManager = logManager;
+    public AdminApiEndpoint(TopicsService topicsService) {
+        this.topicsService = topicsService;
     }
 
     @PostMapping("/admin/flush")
     public ResponseEntity<Void> flush() {
-        logManager.flush();
+        topicsService.flush();
         return ResponseEntity.noContent().build();
     }
 }

@@ -1,8 +1,15 @@
-package io.alchevrier.broker
+package io.alchevrier.broker.endpoint
 
+import io.alchevrier.consumer.MessageConsumer
+import io.alchevrier.consumer.configuration.TcpConfiguration
 import io.alchevrier.message.ConsumeResponse
+import io.alchevrier.message.ProduceRequest
+import io.alchevrier.message.Topic
+import io.alchevrier.producer.MessageProducer
+import io.alchevrier.producer.configuration.TcpProducerConfiguration
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
@@ -22,12 +29,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 @Stepwise
 @ActiveProfiles("test")
+@Import([TcpProducerConfiguration.class, TcpConfiguration.class])
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class BrokerItTest extends Specification {
     static String logDirectory = './tmp/broker/logs'
 
     @Autowired
     WebApplicationContext context
+
+    @Autowired
+    MessageConsumer tcpMessageConsumer
+
+    @Autowired
+    MessageProducer tcpMessageProducer
 
     MockMvc mockMvc
     ObjectMapper objectMapper
@@ -85,24 +99,29 @@ class BrokerItTest extends Specification {
             new String(result.messages()[0].data()) == "Hello"
     }
 
+    def "consume tcp via messaging"() {
+        when: "sending a consume request message to the tcp server"
+            def response = tcpMessageConsumer.consume(new Topic("test-topic"), 0, 100)
+        then: "should receive consume response message"
+            !response.error
+            response.messages().size() == 1
+            response.messages()[0].offset() == 0
+            new String(response.messages()[0].data()) == "Hello"
+    }
+
     def "test produce a lot more messages concurrently endpoint"() {
         when:
             def executor = Executors.newVirtualThreadPerTaskExecutor()
             def futures = (0..<99).collect {
                 CompletableFuture.supplyAsync({
-                    def data = Base64.getEncoder().encodeToString("Hello".getBytes())
-                    return mockMvc.perform(
-                            post("/topics/test-topic/produce")
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .content("""{"data":"${data}"}""")
-                    ).andReturn().response
+                    return tcpMessageProducer.produce(new ProduceRequest(new Topic("test-topic"), "Hello".getBytes()))
                 }, executor)
             }
             def results = futures.collect { it.join() }
             executor.close()
 
         then:
-            results.stream().allMatch {it.status == 200  }
+            results.stream().allMatch {!it.error  }
     }
 
     def "test consume a lot more messages"() {

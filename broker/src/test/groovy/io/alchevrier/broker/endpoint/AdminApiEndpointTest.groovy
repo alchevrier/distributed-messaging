@@ -1,17 +1,16 @@
-package io.alchevrier.broker
+package io.alchevrier.broker.endpoint
 
-import io.alchevrier.broker.endpoint.AdminApiEndpoint
-import io.alchevrier.logstorageengine.LogManager
+import io.alchevrier.broker.service.TopicsService
 import org.springframework.http.HttpStatusCode
 import spock.lang.Specification
 
 class AdminApiEndpointTest extends Specification {
     AdminApiEndpoint objectUnderTest
-    LogManager mockManager
+    TopicsService topicsService
 
     def setup() {
-        mockManager = Mock(LogManager)
-        objectUnderTest = new AdminApiEndpoint(mockManager)
+        topicsService = Mock(TopicsService)
+        objectUnderTest = new AdminApiEndpoint(topicsService)
     }
 
     def "flushing should delegate call to the logManager flushing mechanism"() {
@@ -19,7 +18,6 @@ class AdminApiEndpointTest extends Specification {
             def result = objectUnderTest.flush()
         then:
             result.statusCode == HttpStatusCode.valueOf(204)
-
-            1 * mockManager.flush()
+            1 * topicsService.flush()
     }
 }

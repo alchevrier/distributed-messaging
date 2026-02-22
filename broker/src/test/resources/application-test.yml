@@ -2,3 +2,13 @@ broker:
   log-directory: ./tmp/broker/logs
   max-segment-size: 20
   flush-interval: 1
+
+binary:
+  server:
+    port: 9080
+
+client:
+  tcp:
+    enabled: true
+    host: localhost
+    port: 9080

@@ -11,6 +11,6 @@ public interface MessageConsumerClient {
     ResponseEntity<ConsumeResponse> consume(
             @PathVariable String topic,
             @RequestParam Long offset,
-            @RequestParam Long batchSize
+            @RequestParam int batchSize
     );
 }

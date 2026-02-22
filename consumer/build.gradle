@@ -18,6 +18,7 @@ apply plugin: 'io.spring.dependency-management'
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation project(':message')
+    implementation project(':tcp-client')
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.spockframework:spock-core:2.4-groovy-5.0'

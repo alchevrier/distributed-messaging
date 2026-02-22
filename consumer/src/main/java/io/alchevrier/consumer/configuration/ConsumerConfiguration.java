@@ -1,4 +1,4 @@
-package io.alchevrier.consumer.config;
+package io.alchevrier.consumer.configuration;
 
 import io.alchevrier.consumer.MessageConsumerClient;
 import org.springframework.beans.factory.annotation.Value;

@@ -1,5 +1,8 @@
 package io.alchevrier.tcpserver;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -7,6 +10,9 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
 public class TcpServer implements AutoCloseable {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TcpServer.class);
+
     private final int port;
     private final ServerHandler serverHandler;
 
@@ -32,6 +38,8 @@ public class TcpServer implements AutoCloseable {
                             var request = getRequest(messageLength, socketChannel);
                             writeResponseToClient(request, socketChannel);
                         }
+                    } catch (IOException e) {
+                        LOGGER.info("Client disconnected, listening to new connection");
                     } finally {
                         socketChannel.close();
                     }
@@ -58,7 +66,7 @@ public class TcpServer implements AutoCloseable {
     }
 
     private byte[] getRequest(int messageLength, SocketChannel socketChannel) throws IOException {
-        var messageBuffer = ByteBuffer.allocate(messageLength);
+        var messageBuffer = ByteBuffer.allocate(messageLength - 4);
         while (messageBuffer.hasRemaining()) {
             int bytesRead = socketChannel.read(messageBuffer);
             if (bytesRead == -1) throw new IOException("Client disconnected");

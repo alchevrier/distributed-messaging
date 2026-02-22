@@ -27,7 +27,7 @@ class MessageConsumerTest extends Specification {
 
     def "when attempting to read from a topic at an offset that has no message then should return empty response"() {
         given:
-            def sentResponse = new ConsumeResponse(Collections.emptyList(), 10)
+            def sentResponse = new ConsumeResponse(Collections.emptyList(), 10, null)
         when:
             def result = objectUnderTest.consume(new Topic("test"), 10, 100)
         then:
@@ -39,7 +39,7 @@ class MessageConsumerTest extends Specification {
 
     def "reading for a topic at a given offset and batchSize with messages"() {
         given:
-            def sentResponse = new ConsumeResponse(List.of(new Message(10, "Hello".getBytes())), 11)
+            def sentResponse = new ConsumeResponse(List.of(new Message(10, "Hello".getBytes())), 11, null)
         when:
             def result = objectUnderTest.consume(new Topic("test"), 10, 1)
         then:

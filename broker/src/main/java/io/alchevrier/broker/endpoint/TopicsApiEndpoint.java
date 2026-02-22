@@ -1,44 +1,27 @@
 package io.alchevrier.broker.endpoint;
 
-import io.alchevrier.logstorageengine.LogManager;
+import io.alchevrier.broker.service.TopicsService;
 import io.alchevrier.message.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedList;
-
 @RestController
 public class TopicsApiEndpoint {
 
-    private final LogManager logManager;
+    private final TopicsService topicsService;
 
-    public TopicsApiEndpoint(@Autowired LogManager logManager) {
-        this.logManager = logManager;
+    public TopicsApiEndpoint(@Autowired TopicsService topicsService) {
+        this.topicsService = topicsService;
     }
 
     @GetMapping("/topics/{topic}/consume")
     public ResponseEntity<ConsumeResponse> consume(
             @PathVariable("topic") String topic,
             @RequestParam("offset") Long offset,
-            @RequestParam("batchSize") Long batchSize
+            @RequestParam("batchSize") Integer batchSize
     ) {
-        var consumedMessage = new LinkedList<Message>();
-
-        var lastOffset = 0L;
-        for (var i = offset; i < batchSize + offset; i++) {
-            try {
-                var data = logManager.read(new Topic(topic), i);
-                consumedMessage.add(new Message(i, data));
-                lastOffset = i;
-            } catch (RuntimeException ex) {
-                // breaking the loop meaning no over messages past the previous offset
-                break;
-            }
-        }
-
-        var result = new ConsumeResponse(consumedMessage, lastOffset + 1, null);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(topicsService.consume(topic, offset, batchSize));
     }
 
     @PostMapping("/topics/{topic}/produce")
@@ -46,8 +29,6 @@ public class TopicsApiEndpoint {
             @PathVariable("topic") String topic,
             @RequestBody ProduceRequest produceRequest
     ) {
-        var topicObj = new Topic(topic);
-        var offset = logManager.append(topicObj, produceRequest.data());
-        return ResponseEntity.ok(new ProduceResponse(offset, null));
+        return ResponseEntity.ok(topicsService.produce(topic, produceRequest.data()));
     }
 }
