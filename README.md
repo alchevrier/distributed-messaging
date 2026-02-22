@@ -33,9 +33,11 @@ All architectural decisions are documented using Architecture Decision Records (
 distributed-messaging/
 ├── message/              # Common DTOs (Topic, Message, ProduceRequest)
 ├── log-storage-engine/   # Core storage layer (LogSegment, Log, LogManager)
-├── broker/               # REST API broker (Spring Boot)
-├── consumer/             # Consumer client library (Spring HTTP Interface)
-├── producer/             # Producer client library (Spring HTTP Interface)
+├── broker/               # REST/TCP API broker (Spring Boot and tcp-server)
+├── consumer/             # Consumer client library (Spring HTTP Interface and tcp-client)
+├── producer/             # Producer client library (Spring HTTP Interface and tcp-client)
+├── tcp-client/           # Client connecting via TCP to a server and forward/receive
+├── tcp-server/           # Server using NIO Java API to listen to TCP requests and handles them
 ├── demo-app/             # End-to-end demo application
 └── docs/                 # Documentation & ADRs
 ```
@@ -49,9 +51,11 @@ See [ADR-0008](docs/adr/0008-phase-1-project-structure.md) for detailed architec
 - Basic produce/consume functionality
 - File-based append-only log storage
 - REST API
+- Own binary protocol (TCP, serializer/deserializer)
 
 **What's implemented:**
 - ✅ Log storage engine with NIO (LogSegment, Log, LogManager)
+- ✅ TCP Server/Client with NIO 
 - ✅ REST API broker with Spring Boot
 - ✅ Producer client library (declarative HTTP interface)
 - ✅ Consumer client library (declarative HTTP interface)
