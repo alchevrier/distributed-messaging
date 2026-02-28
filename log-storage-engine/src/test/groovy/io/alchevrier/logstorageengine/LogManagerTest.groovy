@@ -16,13 +16,14 @@ class LogManagerTest extends Specification {
 
     long TEST_SEGMENT_SIZE = 20
     long FLUSH_INTERVAL = 1
+    int PARTITION_NUMBER = 4
 
     LogManager logManager
     String mainDirectory
 
     def setup() {
         mainDirectory = tempDir.resolve("main-directory").toString()
-        logManager = new LogManagerImpl(mainDirectory, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
+        logManager = new LogManagerImpl(mainDirectory, TEST_SEGMENT_SIZE, FLUSH_INTERVAL, PARTITION_NUMBER)
     }
 
     def cleanup() {
@@ -31,28 +32,42 @@ class LogManagerTest extends Specification {
 
     def "reading from an empty log should throw an exception"() {
         when: "no existing log"
-            logManager.read(new Topic("testTopic"), 0)
+            logManager.read(new Topic("testTopic"), 0, 0)
         then: "should throw exception"
             thrown RuntimeException
     }
 
     def "appending to more than one log then should create multiple directory for each log"() {
         when: "appending to more than one log"
-            logManager.append(new Topic("testTopic"), "Hello World!".getBytes())
-            logManager.append(new Topic("secondTopic"), "Hello World!".getBytes())
+            logManager.append(new Topic("testTopic"), null, "Hello World!".getBytes())
+            logManager.append(new Topic("secondTopic"), null, "Hello World!".getBytes())
         then: "should have one directory for each topic"
             Files.list(Paths.get(mainDirectory)).toArray().length == 2
-            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic")  }
-            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("secondTopic")  }
+            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic-0")  }
+            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("secondTopic-0")  }
+    }
+
+    def "appending to more than one log and multiple partitions then should create multiple directory for each log"() {
+        when: "appending to more than one log"
+            logManager.append(new Topic("testTopic"), null, "Hello World!".getBytes())
+            logManager.append(new Topic("secondTopic"), null, "Hello World!".getBytes())
+            logManager.append(new Topic("testTopic"), "MyKey", "Hello World!".getBytes())
+            logManager.append(new Topic("testTopic"), "Another", "Hello World!".getBytes())
+        then: "should have one directory for each topic"
+            Files.list(Paths.get(mainDirectory)).toArray().length == 4
+            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic-0")  }
+            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic-1")  }
+            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic-3")  }
+            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("secondTopic-0")  }
     }
 
     def "appending to more than one log then should be able to read at any of the log"() {
         given: "appending to more than one log"
-            logManager.append(new Topic("testTopic"), "Hello World!".getBytes())
-            logManager.append(new Topic("secondTopic"), "Is Different".getBytes())
+            logManager.append(new Topic("testTopic"), null, "Hello World!".getBytes())
+            logManager.append(new Topic("secondTopic"), null, "Is Different".getBytes())
         when: "reading any of the offset of the logs"
-            def secondTopicResult = logManager.read(new Topic("secondTopic"), 0)
-            def firstTopicResult = logManager.read(new Topic("testTopic"), 0)
+            def secondTopicResult = logManager.read(new Topic("secondTopic"), 0, 0)
+            def firstTopicResult = logManager.read(new Topic("testTopic"), 0, 0)
         then: "should have the corresponding message as appended"
             new String(secondTopicResult) == "Is Different"
             new String(firstTopicResult) == "Hello World!"
@@ -63,7 +78,7 @@ class LogManagerTest extends Specification {
             def executor = Executors.newVirtualThreadPerTaskExecutor()
             def futures = (0..<1000).collect {
                 CompletableFuture.runAsync({
-                    logManager.append(new Topic("testTopic"), "Hello".getBytes())
+                    logManager.append(new Topic("testTopic"), "MyKey", "Hello".getBytes())
                 }, executor)
             }
             futures.collect { it.join() }
@@ -71,20 +86,20 @@ class LogManagerTest extends Specification {
 
         then: "only one folder with the topic name should be created"
             Files.list(Paths.get(mainDirectory)).toArray().length == 1
-            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic")  }
-            new String(logManager.read(new Topic("testTopic"), 999)) == "Hello"
+            Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic-1")  }
+            new String(logManager.read(new Topic("testTopic"), 1, 999)) == "Hello"
     }
 
     def "concurrent reads across multiple segments should work correctly"() {
         given: "appending further than segment size"
-            logManager.append(new Topic("testTopic"), "Hello World".getBytes())
-            logManager.append(new Topic("testTopic"), "HelloW".getBytes())
+            logManager.append(new Topic("testTopic"), "MyKey", "Hello World".getBytes())
+            logManager.append(new Topic("testTopic"), "MyKey", "HelloW".getBytes())
 
         when: "1000 virtual threads read the same offset concurrently"
             def executor = Executors.newVirtualThreadPerTaskExecutor()
             def futures = (0..<1000).collect {
                 CompletableFuture.supplyAsync({
-                    new String(logManager.read(new Topic("testTopic"), 1))
+                    new String(logManager.read(new Topic("testTopic"), 1, 1))
                 }, executor)
             }
             def results = futures.collect { it.join() }
@@ -93,5 +108,37 @@ class LogManagerTest extends Specification {
         then: "all reads should return the correct data"
             results.size() == 1000
             results.every { it == "HelloW" }
+    }
+
+    def "concurrent reads across multiple segments and multiple partition should work correctly"() {
+        given: "appending further than segment size"
+            logManager.append(new Topic("testTopic"), "MyKey", "Hello World".getBytes())
+            logManager.append(new Topic("testTopic"), "MyKey", "HelloW".getBytes())
+
+            logManager.append(new Topic("testTopic"), "Another", "Second Partition".getBytes())
+            logManager.append(new Topic("testTopic"), "Another", "SecondP".getBytes())
+
+        when: "1000 virtual threads read the same offset concurrently"
+            def executor = Executors.newVirtualThreadPerTaskExecutor()
+            def futures = (0..<1000).collect {
+                CompletableFuture.supplyAsync({
+                    new String(logManager.read(new Topic("testTopic"), 1, 1))
+                }, executor)
+            }
+            def secondPartitionFutures = (0..<1000).collect {
+                CompletableFuture.supplyAsync({
+                    new String(logManager.read(new Topic("testTopic"), 3, 1))
+                }, executor)
+            }
+            def results = futures.collect { it.join() }
+            def secondPartitionResults = secondPartitionFutures.collect { it.join() }
+            executor.close()
+
+        then: "all reads should return the correct data"
+            results.size() == 1000
+            results.every { it == "HelloW" }
+
+            secondPartitionResults.size() == 1000
+            secondPartitionResults.every { it == "SecondP" }
     }
 }

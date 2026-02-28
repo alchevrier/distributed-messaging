@@ -11,4 +11,5 @@ public interface Log {
     byte[] read(long offset);
     void flush();
     void close();
+    long messageCount();
 }

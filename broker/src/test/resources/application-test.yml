@@ -2,6 +2,7 @@ broker:
   log-directory: ./tmp/broker/logs
   max-segment-size: 20
   flush-interval: 1
+  partition-number: 3
 
 binary:
   server:

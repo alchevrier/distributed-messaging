@@ -16,13 +16,13 @@ public class TopicsService {
         this.logManager = logManager;
     }
 
-    public ConsumeResponse consume(String topic, Long offset, Integer batchSize) {
+    public ConsumeResponse consume(String topic, int partition, Long offset, Integer batchSize) {
         var consumedMessage = new LinkedList<Message>();
 
         var lastOffset = 0L;
         for (var i = offset; i < batchSize + offset; i++) {
             try {
-                var data = logManager.read(new Topic(topic), i);
+                var data = logManager.read(new Topic(topic), partition, i);
                 consumedMessage.add(new Message(i, data));
                 lastOffset = i;
             } catch (RuntimeException ex) {
@@ -34,9 +34,11 @@ public class TopicsService {
         return new ConsumeResponse(consumedMessage, lastOffset + 1, null);
     }
 
-    public ProduceResponse produce(String topic, byte[] data) {
+    public ProduceResponse produce(String topic, String key, byte[] data) {
+        var response = logManager.append(new Topic(topic), key, data);
         return new ProduceResponse(
-                logManager.append(new Topic(topic), data),
+                response.partition(),
+                response.offset(),
                 null
         );
     }

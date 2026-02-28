@@ -20,21 +20,21 @@ class TopicsApiEndpointTest extends Specification {
 
     def "given a base offset, a topic name and a batch size of one then should provide consume response of size one"() {
         when: "calling the delegate to read the value"
-            def result = objectUnderTest.consume("hello", 0, 1)
+            def result = objectUnderTest.consume("hello", 0, 0, 1)
         then: "should have one message"
             result.statusCode == HttpStatusCode.valueOf(200)
             result.body.messages().size() == 1
             result.body.messages()[0].offset() == 0
             new String(result.body.messages()[0].data()) == "Hello World"
 
-            1 * topicsService.consume("hello", 0, 1) >> new ConsumeResponse(
+            1 * topicsService.consume("hello", 0, 0, 1) >> new ConsumeResponse(
                     List.of(new Message(0, "Hello World".getBytes())), 1, null
             )
     }
 
     def "given a base offset, a topic name and a batch size of three then should provide consume response of size three"() {
         when: "calling the delegate to read the value"
-            def result = objectUnderTest.consume("hello", 0, 3)
+            def result = objectUnderTest.consume("hello",0,  0, 3)
         then: "should have three messages"
             result.statusCode == HttpStatusCode.valueOf(200)
             result.body.messages().size() == 3
@@ -45,7 +45,7 @@ class TopicsApiEndpointTest extends Specification {
             result.body.messages()[2].offset() == 2
             new String(result.body.messages()[2].data()) == "Hey Pa!"
 
-            1 * topicsService.consume("hello", 0, 3) >> new ConsumeResponse(
+            1 * topicsService.consume("hello", 0, 0, 3) >> new ConsumeResponse(
                     List.of(
                             new Message(0, "Hello World".getBytes()),
                             new Message(1, "Second Message".getBytes()),
@@ -56,14 +56,15 @@ class TopicsApiEndpointTest extends Specification {
 
     def "appending to the log should provide the offset it was written on"() {
         when: "calling the delegate to append a value"
-            def produceRequest = new ProduceRequest(new Topic("hello"), "Hello".getBytes())
+            def produceRequest = new ProduceRequest(new Topic("hello"), null, "Hello".getBytes())
 
             def result = objectUnderTest.produce("hello", produceRequest)
 
         then: "should have the offset at which the message was written"
             result.statusCode == HttpStatusCode.valueOf(200)
             result.body.offset() == 100
+            result.body.partition() == 1
 
-            1 * topicsService.produce("hello", "Hello".getBytes()) >> new ProduceResponse(100, null)
+            1 * topicsService.produce("hello", null, "Hello".getBytes()) >> new ProduceResponse(1, 100, null)
     }
 }

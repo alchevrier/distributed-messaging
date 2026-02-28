@@ -16,8 +16,8 @@ public class DefaultMessageConsumer implements MessageConsumer {
     }
 
     @Override
-    public ConsumeResponse consume(Topic topic, long startOffset, int batchSize) {
-        var result = consumerClient.consume(topic.name(), startOffset, batchSize);
+    public ConsumeResponse consume(Topic topic, int partition, long startOffset, int batchSize) {
+        var result = consumerClient.consume(topic.name(), startOffset, batchSize, partition);
         if (result.getStatusCode() != HttpStatusCode.valueOf(200)) {
             throw new RuntimeException(String.format("Could not consume at topic %s startOffset %s and batchSize %s", topic, startOffset, batchSize));
         }

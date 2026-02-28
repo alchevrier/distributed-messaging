@@ -1,4 +1,4 @@
 package io.alchevrier.message;
 
-public record ProduceRequest(Topic topic, byte[] data) {
+public record ProduceRequest(Topic topic, String key, byte[] data) {
 }

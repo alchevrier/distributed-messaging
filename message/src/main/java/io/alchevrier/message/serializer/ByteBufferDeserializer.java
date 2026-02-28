@@ -20,10 +20,11 @@ public class ByteBufferDeserializer {
         var topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
 
+        var partition = buffer.getInt();
         var startingOffset = buffer.getLong();
         var batchSize = buffer.getInt();
 
-        return new ConsumeRequest(new Topic(new String(topicBytes)), startingOffset, batchSize);
+        return new ConsumeRequest(new Topic(new String(topicBytes)), partition, startingOffset, batchSize);
     }
 
     public ConsumeResponse deserializeConsumeResponse(byte[] source) {
@@ -73,11 +74,19 @@ public class ByteBufferDeserializer {
         var topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
 
+        var keyLength = buffer.getInt();
+        var keyBytes = new byte[keyLength];
+        buffer.get(keyBytes);
+
         var dataLength = buffer.getInt();
         var dataBytes = new byte[dataLength];
         buffer.get(dataBytes);
 
-        return new ProduceRequest(new Topic(new String(topicBytes)), dataBytes);
+        return new ProduceRequest(
+                new Topic(new String(topicBytes)),
+                keyBytes.length == 0 ? null : new String(keyBytes),
+                dataBytes
+        );
     }
 
     public ProduceResponse deserializeProduceResponse(byte[] source) {
@@ -90,13 +99,15 @@ public class ByteBufferDeserializer {
 
         if (buffer.get() == 1) {
             var offset = buffer.getLong();
-            return new ProduceResponse(offset, null);
+            var partition = buffer.getInt();
+            return new ProduceResponse(partition, offset, null);
         }
 
         var errorLength = buffer.getInt();
         var errorBytes = new byte[errorLength];
         buffer.get(errorBytes);
-        return new ProduceResponse(null, new String(errorBytes));
+        var partition = buffer.getInt();
+        return new ProduceResponse(partition, null, new String(errorBytes));
     }
 
     public FlushRequest deserializeFlushRequest(byte[] source) {

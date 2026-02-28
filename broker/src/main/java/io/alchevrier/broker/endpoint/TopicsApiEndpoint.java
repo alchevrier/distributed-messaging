@@ -18,10 +18,11 @@ public class TopicsApiEndpoint {
     @GetMapping("/topics/{topic}/consume")
     public ResponseEntity<ConsumeResponse> consume(
             @PathVariable("topic") String topic,
+            @RequestParam("partition") Integer partition,
             @RequestParam("offset") Long offset,
             @RequestParam("batchSize") Integer batchSize
     ) {
-        return ResponseEntity.ok(topicsService.consume(topic, offset, batchSize));
+        return ResponseEntity.ok(topicsService.consume(topic, partition, offset, batchSize));
     }
 
     @PostMapping("/topics/{topic}/produce")
@@ -29,6 +30,6 @@ public class TopicsApiEndpoint {
             @PathVariable("topic") String topic,
             @RequestBody ProduceRequest produceRequest
     ) {
-        return ResponseEntity.ok(topicsService.produce(topic, produceRequest.data()));
+        return ResponseEntity.ok(topicsService.produce(topic, produceRequest.key(), produceRequest.data()));
     }
 }

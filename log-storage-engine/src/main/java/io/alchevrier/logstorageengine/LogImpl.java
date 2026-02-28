@@ -131,4 +131,9 @@ public class LogImpl implements Log {
             writeLock.unlock();
         }
     }
+
+    @Override
+    public long messageCount() {
+        return nextOffset;
+    }
 }

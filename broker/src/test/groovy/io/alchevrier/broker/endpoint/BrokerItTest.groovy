@@ -89,6 +89,7 @@ class BrokerItTest extends Specification {
                     get("/topics/test-topic/consume")
                             .queryParam("offset", "0")
                             .queryParam("batchSize", "100")
+                            .queryParam("partition", "0")
                             .accept(MediaType.APPLICATION_JSON)
             ).andReturn().response
         then:
@@ -101,7 +102,7 @@ class BrokerItTest extends Specification {
 
     def "consume tcp via messaging"() {
         when: "sending a consume request message to the tcp server"
-            def response = tcpMessageConsumer.consume(new Topic("test-topic"), 0, 100)
+            def response = tcpMessageConsumer.consume(new Topic("test-topic"), 0, 0, 100)
         then: "should receive consume response message"
             !response.error
             response.messages().size() == 1
@@ -112,9 +113,9 @@ class BrokerItTest extends Specification {
     def "test produce a lot more messages concurrently endpoint"() {
         when:
             def executor = Executors.newVirtualThreadPerTaskExecutor()
-            def futures = (0..<99).collect {
+            def futures = (0..<33).collect {
                 CompletableFuture.supplyAsync({
-                    return tcpMessageProducer.produce(new ProduceRequest(new Topic("test-topic"), "Hello".getBytes()))
+                    return tcpMessageProducer.produce(new ProduceRequest(new Topic("test-topic"), "MyKey", "Hello".getBytes()))
                 }, executor)
             }
             def results = futures.collect { it.join() }
@@ -130,15 +131,66 @@ class BrokerItTest extends Specification {
                     get("/topics/test-topic/consume")
                             .queryParam("offset", "0")
                             .queryParam("batchSize", "100")
+                            .queryParam("partition", "2")
                             .accept(MediaType.APPLICATION_JSON)
             ).andReturn().response
         then:
             response.status == 200
             def result = objectMapper.readValue(response.contentAsString, ConsumeResponse)
-            result.messages().size() == 100
-            for (i in 0..99) {
+            result.messages().size() == 33
+            for (i in 0..32) {
                 result.messages()[i].offset() == i
                 new String(result.messages()[i].data()) == "Hello"
+            }
+    }
+
+    def "test produce a lot more messages to balance the least-used partition concurrently endpoint"() {
+        when:
+            def executor = Executors.newVirtualThreadPerTaskExecutor()
+            def futures = (0..<66).collect {
+                CompletableFuture.supplyAsync({
+                    return tcpMessageProducer.produce(new ProduceRequest(new Topic("test-topic"), null, "Hello".getBytes()))
+                }, executor)
+            }
+            def results = futures.collect { it.join() }
+            executor.close()
+
+        then:
+            results.stream().allMatch {!it.error  }
+    }
+
+    def "test consume to check partition are balanced"() {
+        when:
+            def firstPartitionResponse = mockMvc.perform(
+                    get("/topics/test-topic/consume")
+                            .queryParam("offset", "0")
+                            .queryParam("batchSize", "100")
+                            .queryParam("partition", "0")
+                            .accept(MediaType.APPLICATION_JSON)
+            ).andReturn().response
+
+            def thirdPartitionResponse = mockMvc.perform(
+                    get("/topics/test-topic/consume")
+                            .queryParam("offset", "0")
+                            .queryParam("batchSize", "100")
+                            .queryParam("partition", "2")
+                            .accept(MediaType.APPLICATION_JSON)
+            ).andReturn().response
+        then:
+            firstPartitionResponse.status == 200
+            def firstPartitionResult = objectMapper.readValue(firstPartitionResponse.contentAsString, ConsumeResponse)
+            firstPartitionResult.messages().size() == 34
+            for (i in 0..32) {
+                firstPartitionResult.messages()[i].offset() == i
+                new String(firstPartitionResult.messages()[i].data()) == "Hello"
+            }
+
+            thirdPartitionResponse.status == 200
+            def thirdPartitionResult = objectMapper.readValue(thirdPartitionResponse.contentAsString, ConsumeResponse)
+            thirdPartitionResult.messages().size() == 33
+            for (i in 0..32) {
+                thirdPartitionResult.messages()[i].offset() == i
+                new String(thirdPartitionResult.messages()[i].data()) == "Hello"
             }
     }
 }

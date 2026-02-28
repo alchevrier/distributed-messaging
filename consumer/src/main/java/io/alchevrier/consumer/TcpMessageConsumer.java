@@ -26,10 +26,10 @@ public class TcpMessageConsumer implements MessageConsumer {
     }
 
     @Override
-    public ConsumeResponse consume(Topic topic, long startOffset, int batchSize) {
+    public ConsumeResponse consume(Topic topic, int partition, long startOffset, int batchSize) {
         try {
             return client.forwardToServer(
-                    new ConsumeRequest(topic, startOffset, batchSize),
+                    new ConsumeRequest(topic, partition, startOffset, batchSize),
                     serializer::serialize,
                     deserializer::deserializeConsumeResponse
             );

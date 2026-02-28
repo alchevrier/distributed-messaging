@@ -18,9 +18,9 @@ class MessageConsumerTest extends Specification {
 
     def "when http error happened then should throw an exception to be handled by the consumer"() {
         when:
-            objectUnderTest.consume(new Topic("test"), 10, 100)
+            objectUnderTest.consume(new Topic("test"), 0, 10, 100)
         then:
-            1 * mockClient.consume("test", 10, 100) >> ResponseEntity.badRequest()
+            1 * mockClient.consume("test", 10, 100, 0) >> ResponseEntity.badRequest()
 
             thrown RuntimeException
     }
@@ -29,9 +29,9 @@ class MessageConsumerTest extends Specification {
         given:
             def sentResponse = new ConsumeResponse(Collections.emptyList(), 10, null)
         when:
-            def result = objectUnderTest.consume(new Topic("test"), 10, 100)
+            def result = objectUnderTest.consume(new Topic("test"), 0, 10, 100)
         then:
-            1 * mockClient.consume("test", 10, 100) >> ResponseEntity.ok(sentResponse)
+            1 * mockClient.consume("test", 10, 100, 0) >> ResponseEntity.ok(sentResponse)
 
             result.messages().isEmpty()
             result.nextOffset() == 10
@@ -41,9 +41,9 @@ class MessageConsumerTest extends Specification {
         given:
             def sentResponse = new ConsumeResponse(List.of(new Message(10, "Hello".getBytes())), 11, null)
         when:
-            def result = objectUnderTest.consume(new Topic("test"), 10, 1)
+            def result = objectUnderTest.consume(new Topic("test"), 0, 10, 1)
         then:
-            1 * mockClient.consume("test", 10, 1) >> ResponseEntity.ok(sentResponse)
+            1 * mockClient.consume("test", 10, 1, 0) >> ResponseEntity.ok(sentResponse)
 
             result.messages().size() == 1
             result.messages()[0].offset() == 10

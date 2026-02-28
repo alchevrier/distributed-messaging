@@ -18,9 +18,10 @@ public class BrokerConfiguration {
     public LogManager logManager(
             @Value("${broker.log-directory}") String logDirectory,
             @Value("${broker.max-segment-size}") long maxSegmentSize,
-            @Value("${broker.flush-interval}") long flushInterval
+            @Value("${broker.flush-interval}") long flushInterval,
+            @Value("${broker.partition-number}") int partitionNumber
     ) {
-        return new LogManagerImpl(logDirectory, maxSegmentSize, flushInterval);
+        return new LogManagerImpl(logDirectory, maxSegmentSize, flushInterval, partitionNumber);
     }
 
     @Bean(destroyMethod = "close")

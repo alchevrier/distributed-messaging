@@ -29,7 +29,7 @@ public class TcpMessageProducer implements MessageProducer {
         try {
             return client.forwardToServer(produceRequest, serializer::serialize, deserializer::deserializeProduceResponse);
         } catch (IOException e) {
-            return new ProduceResponse(null, e.getMessage());
+            return new ProduceResponse(-1, null, e.getMessage());
         }
     }
 }

@@ -35,14 +35,14 @@ class BrokerEndpointHandlerTest extends Specification {
             consumeRequest.put(CONSUME_REQUEST)
             consumeRequest.flip()
 
-            def mockRequest = new ConsumeRequest(new Topic("test"), 0, 100)
+            def mockRequest = new ConsumeRequest(new Topic("test"), 0, 0, 100)
             def mockResponse = Mock(ConsumeResponse)
             def expectedResponse = new byte[0]
         when: "handling the consume request"
             def result = objectUnderTest.handle(consumeRequest.array())
         then: "should have been handled correctly"
             1 * deserializer.deserializeConsumeRequest(consumeRequest.array()) >> mockRequest
-            1 * topicsService.consume("test", 0, 100) >> mockResponse
+            1 * topicsService.consume("test", 0, 0, 100) >> mockResponse
             1 * serializer.serialize(mockResponse) >> expectedResponse
 
             result == expectedResponse
@@ -55,14 +55,14 @@ class BrokerEndpointHandlerTest extends Specification {
             produceRequest.flip()
 
             def producedData = "To Be Produced".getBytes()
-            def mockRequest = new ProduceRequest(new Topic("test"), producedData)
+            def mockRequest = new ProduceRequest(new Topic("test"), null, producedData)
             def mockResponse = Mock(ProduceResponse)
             def expectedResponse = new byte[0]
         when: "handling the produce request"
             def result = objectUnderTest.handle(produceRequest.array())
         then: "should have been handled correctly"
             1 * deserializer.deserializeProduceRequest(produceRequest.array()) >> mockRequest
-            1 * topicsService.produce("test", producedData) >> mockResponse
+            1 * topicsService.produce("test", null, producedData) >> mockResponse
             1 * serializer.serialize(mockResponse) >> expectedResponse
 
             result == expectedResponse

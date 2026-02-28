@@ -25,11 +25,11 @@ public class DemoController {
 
     @GetMapping("/consume")
     public ConsumeResponse consume() {
-        return messageConsumer.consume(new Topic("Hello"), 0, 100);
+        return messageConsumer.consume(new Topic("Hello"), 0, 0, 100);
     }
 
     @PostMapping("/produce")
     public ProduceResponse produce() {
-        return messageProducer.produce(new ProduceRequest(new Topic("Hello"), ("Hi " + LocalDateTime.now()).getBytes()));
+        return messageProducer.produce(new ProduceRequest(new Topic("Hello"), null, ("Hi " + LocalDateTime.now()).getBytes()));
     }
 }

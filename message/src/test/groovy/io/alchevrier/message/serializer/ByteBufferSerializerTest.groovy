@@ -22,9 +22,9 @@ class ByteBufferSerializerTest extends Specification {
         anotherObjectUnderTest = new ByteBufferDeserializer()
     }
 
-    def "given a producer request then should serialize-deserialize as expected"() {
+    def "given a producer request without key then should serialize-deserialize as expected"() {
         given: "a producer request"
-            def request = new ProduceRequest(new Topic("hello"), "Hello World".getBytes())
+            def request = new ProduceRequest(new Topic("hello"), null, "Hello World".getBytes())
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(request)
             def result = anotherObjectUnderTest.deserializeProduceRequest(
@@ -32,12 +32,27 @@ class ByteBufferSerializerTest extends Specification {
             )
         then: "should match the producer request"
             result.topic() == request.topic()
+            result.key() == null
+            new String(result.data()) == new String(request.data())
+    }
+
+    def "given a producer request with key then should serialize-deserialize as expected"() {
+        given: "a producer request"
+            def request = new ProduceRequest(new Topic("hello"), "MyKey", "Hello World".getBytes())
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(request)
+            def result = anotherObjectUnderTest.deserializeProduceRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match the producer request"
+            result.topic() == request.topic()
+            result.key() == "MyKey"
             new String(result.data()) == new String(request.data())
     }
 
     def "given a successful producer response then should serialize-deserialize as expected"() {
         given: "a producer response"
-            def response = new ProduceResponse(8, null)
+            def response = new ProduceResponse(1, 8, null)
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
             def result = anotherObjectUnderTest.deserializeProduceResponse(
@@ -49,7 +64,7 @@ class ByteBufferSerializerTest extends Specification {
 
     def "given a failed producer response then should serialize-deserialize as expected"() {
         given: "a producer response"
-            def response = new ProduceResponse(null, "Could not persist message")
+            def response = new ProduceResponse(-1, null, "Could not persist message")
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(response)
             def result = anotherObjectUnderTest.deserializeProduceResponse(
@@ -61,7 +76,7 @@ class ByteBufferSerializerTest extends Specification {
 
     def "given a consume request then should serialize-deserialize as expected"() {
         given: "a consume request"
-            def request = new ConsumeRequest(new Topic("hello-topic"), 18, 1000)
+            def request = new ConsumeRequest(new Topic("hello-topic"), 2, 18, 1000)
         when: "serializing-deserializing"
             def toBytes = objectUnderTest.serialize(request)
             def result = anotherObjectUnderTest.deserializeConsumeRequest(

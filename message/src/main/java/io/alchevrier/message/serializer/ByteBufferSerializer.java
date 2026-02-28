@@ -10,13 +10,14 @@ import static io.alchevrier.message.serializer.MessageType.*;
 public class ByteBufferSerializer {
     public byte[] serialize(ConsumeRequest consumeRequest) {
         var topicName = consumeRequest.topic().name().getBytes(StandardCharsets.UTF_8);
-        var length = 4 + 1 + 4 + topicName.length * 4 + 4 + 8 + 4;
+        var length = 4 + 1 + 4 + topicName.length + 4 + 8 + 4;
 
         var buffer = ByteBuffer.allocate(length);
         buffer.putInt(length);
         buffer.put(CONSUME_REQUEST);
         buffer.putInt(topicName.length);
         buffer.put(topicName);
+        buffer.putInt(consumeRequest.partition());
         buffer.putLong(consumeRequest.startingOffset());
         buffer.putInt(consumeRequest.batchSize());
 
@@ -64,14 +65,19 @@ public class ByteBufferSerializer {
     }
 
     public byte[] serialize(ProduceRequest produceRequest) {
+        var producerKey = produceRequest.key() != null ? produceRequest.key().getBytes(StandardCharsets.UTF_8) : new byte[0];
         var topicName = produceRequest.topic().name().getBytes(StandardCharsets.UTF_8);
-        var length = 4 + 1 + 4 + topicName.length + 4 + produceRequest.data().length;
+        var length = 4 + 1 + 4 + topicName.length + 4 + producerKey.length + 4 + produceRequest.data().length;
 
         var buffer = ByteBuffer.allocate(length);
         buffer.putInt(length);
         buffer.put(PRODUCE_REQUEST);
         buffer.putInt(topicName.length);
         buffer.put(topicName);
+        buffer.putInt(producerKey.length);
+        if (produceRequest.key() != null) {
+            buffer.put(producerKey);
+        }
         buffer.putInt(produceRequest.data().length);
         buffer.put(produceRequest.data());
 
@@ -80,10 +86,10 @@ public class ByteBufferSerializer {
 
     public byte[] serialize(ProduceResponse produceResponse) {
         var errorBytes = produceResponse.isError() ? produceResponse.error().getBytes(StandardCharsets.UTF_8) : new byte[0];
-        var errorLength = produceResponse.isError() ? errorBytes.length : 0;
+        var errorLength = produceResponse.isError() ? 4 : 0;
         var offsetLength = produceResponse.isError() ? 0 : 8;
 
-        var length = 4 + 1 + 1 + errorLength + errorBytes.length + offsetLength;
+        var length = 4 + 1 + 1 + errorLength + errorBytes.length + offsetLength + 4;
 
         var buffer = ByteBuffer.allocate(length);
         buffer.putInt(length);
@@ -93,9 +99,11 @@ public class ByteBufferSerializer {
         if (!produceResponse.isError()) {
             buffer.putLong(produceResponse.offset());
         } else {
-            buffer.putInt(errorLength);
-            buffer.put(produceResponse.error().getBytes(StandardCharsets.UTF_8));
+            buffer.putInt(errorBytes.length);
+            buffer.put(errorBytes);
         }
+
+        buffer.putInt(produceResponse.partition());
 
         return buffer.array();
     }

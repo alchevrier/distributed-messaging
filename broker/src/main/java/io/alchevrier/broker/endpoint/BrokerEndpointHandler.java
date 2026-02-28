@@ -40,13 +40,13 @@ public class BrokerEndpointHandler implements ServerHandler {
 
     private byte[] handleConsumeRequest(byte[] message) {
         var request = deserializer.deserializeConsumeRequest(message);
-        var response = topicsService.consume(request.topic().name(), request.startingOffset(), request.batchSize());
+        var response = topicsService.consume(request.topic().name(), request.partition(), request.startingOffset(), request.batchSize());
         return serializer.serialize(response);
     }
 
     private byte[] handleProduceRequest(byte[] message) {
         var request = deserializer.deserializeProduceRequest(message);
-        var response = topicsService.produce(request.topic().name(), request.data());
+        var response = topicsService.produce(request.topic().name(), request.key(), request.data());
         return serializer.serialize(response);
     }
 

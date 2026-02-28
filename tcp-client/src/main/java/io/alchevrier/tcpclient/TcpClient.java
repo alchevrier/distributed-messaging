@@ -16,7 +16,7 @@ public class TcpClient implements AutoCloseable {
         this.port = port;
     }
 
-    public <Req, Res> Res forwardToServer(Req message, Function<Req, byte[]> serializer, Function<byte[], Res> deserializer) throws IOException {
+    public synchronized <Req, Res> Res forwardToServer(Req message, Function<Req, byte[]> serializer, Function<byte[], Res> deserializer) throws IOException {
         if (this.channel == null) {
             connectToServer();
         }
