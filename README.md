@@ -28,7 +28,7 @@ All architectural decisions are documented using Architecture Decision Records (
 | [ADR-0008](docs/adr/0008-phase-1-project-structure.md) | Phase 1 Project Structure | Accepted |
 | [ADR-0009](docs/adr/0009-use-binary-wire-protocol.md) | Use Binary Wire Protocol (Phase 2) | Accepted |
 | [ADR-0010](docs/adr/0010-phase-2-project-structure.md) | Phase 2 Project Structure | Accepted |
-| [ADR-0011](docs/adr/0011-phase-3-project-structure) | Phase 3 Project Structure | Accepted |
+| [ADR-0011](docs/adr/0011-phase-3-project-structure.md) | Phase 3 Project Structure | Accepted |
 
 ## Project Structure
 
