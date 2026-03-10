@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TcpServer implements AutoCloseable {
 
@@ -18,40 +19,38 @@ public class TcpServer implements AutoCloseable {
 
     private boolean gracefullyShutdown;
 
+    private final AtomicInteger connCounter = new AtomicInteger(0);
+
     public TcpServer(int port, ServerHandler serverHandler) {
         this.port = port;
         this.serverHandler = serverHandler;
     }
 
     public void start() {
-        try {
-            var serverSockerChannel = ServerSocketChannel.open();
-            serverSockerChannel.socket().bind(new InetSocketAddress(port));
-            serverSockerChannel.configureBlocking(false);
+        Thread.ofVirtual().name("tcp-server-" + port).start(() -> {
+            try {
+                var serverSockerChannel = ServerSocketChannel.open();
+                serverSockerChannel.socket().bind(new InetSocketAddress(port));
 
-            while (!gracefullyShutdown) {
-                var socketChannel = serverSockerChannel.accept();
-                if (socketChannel != null) {
-                    try {
-                        while (!gracefullyShutdown) {
-                            var messageLength = getMessageLength(socketChannel);
-                            var request = getRequest(messageLength, socketChannel);
-                            writeResponseToClient(request, socketChannel);
+                while (!gracefullyShutdown) {
+                    var socketChannel = serverSockerChannel.accept();
+                    Thread.ofVirtual().name("tcp-conn-" + connCounter.getAndIncrement()).start(() -> {
+                        try (socketChannel) {
+                            while (!gracefullyShutdown) {
+                                var messageLength = getMessageLength(socketChannel);
+                                var request = getRequest(messageLength, socketChannel);
+                                writeResponseToClient(request, socketChannel);
+                            }
+                        } catch (IOException e) {
+                            LOGGER.info("Client disconnected on port {}", port);
                         }
-                    } catch (IOException e) {
-                        LOGGER.info("Client disconnected, listening to new connection");
-                    } finally {
-                        socketChannel.close();
-                    }
-                } else {
-                    Thread.sleep(10);
+                    });
                 }
+                serverSockerChannel.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-
-            serverSockerChannel.close();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        });
     }
 
     private int getMessageLength(SocketChannel socketChannel) throws IOException {
