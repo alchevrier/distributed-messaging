@@ -1,4 +1,4 @@
-package io.alchevrier.message;
+package io.alchevrier.message.broker;
 
 public record ProduceResponse(int partition, Long offset, String error) {
     public boolean isError() {

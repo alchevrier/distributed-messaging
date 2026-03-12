@@ -1,6 +1,10 @@
 package io.alchevrier.message.serializer;
 
-import io.alchevrier.message.*;
+import io.alchevrier.message.broker.*;
+import io.alchevrier.message.raft.AppendEntriesRequest;
+import io.alchevrier.message.raft.AppendEntriesResponse;
+import io.alchevrier.message.raft.RequestVoteRequest;
+import io.alchevrier.message.raft.RequestVoteResponse;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -135,5 +139,68 @@ public class ByteBufferSerializer {
             buffer.put((byte) 1);
             return buffer.array();
         }
+    }
+
+    public byte[] serialize(RequestVoteRequest request) {
+        var length = 4 + 1 + 8 + 4 + 8 + 8;
+        var buffer = ByteBuffer.allocate(length);
+        buffer.putInt(length);
+        buffer.put(REQUEST_VOTE_REQUEST);
+        buffer.putLong(request.candidateTerm());
+        buffer.putInt(request.candidateId());
+        buffer.putLong(request.lastLogIndex());
+        buffer.putLong(request.lastLogTerm());
+        return buffer.array();
+    }
+
+    public byte[] serialize(RequestVoteResponse response) {
+        var length = 4 + 1 + 1 + 8;
+        var buffer = ByteBuffer.allocate(length);
+        buffer.putInt(length);
+        buffer.put(REQUEST_VOTE_RESPONSE);
+        buffer.put(response.voteGranted() ? (byte) 1 : (byte) 0);
+        buffer.putLong(response.currentTerm());
+        return buffer.array();
+    }
+
+    public byte[] serialize(AppendEntriesRequest request) {
+        var lengthOfEntries = 0;
+        for (var entry: request.entries()) {
+            lengthOfEntries += 4 + entry.length;
+        }
+        var length = 4 + 1 + 8 + 4 + 8 + 8 + 8 + 4 + lengthOfEntries;
+        var buffer = ByteBuffer.allocate(length);
+        buffer.putInt(length);
+        buffer.put(APPEND_ENTRIES_REQUEST);
+        buffer.putLong(request.term());
+        buffer.putInt(request.leaderId());
+        buffer.putLong(request.leaderCommitIndex());
+        buffer.putLong(request.prevLogIndex());
+        buffer.putLong(request.prevLogTerm());
+        buffer.putInt(request.entries().length);
+
+        for (var entry: request.entries()) {
+            buffer.putInt(entry.length);
+            buffer.put(entry);
+        }
+
+        return buffer.array();
+    }
+
+    public byte[] serialize(AppendEntriesResponse response) {
+        var length = 4 + 1 + 1 + 8 + 8 + 8;
+        var buffer = ByteBuffer.allocate(length);
+        buffer.putInt(length);
+        buffer.put(APPEND_ENTRIES_RESPONSE);
+
+        buffer.put(response.success() ? (byte) 1 : (byte) 0);
+        buffer.putLong(response.term());
+
+        if (!response.success()) {
+            buffer.putLong(response.conflictTerm());
+            buffer.putLong(response.conflictIndex());
+        }
+
+        return buffer.array();
     }
 }

@@ -2,6 +2,8 @@ package io.alchevrier.broker.service;
 
 import io.alchevrier.logstorageengine.LogManager;
 import io.alchevrier.message.*;
+import io.alchevrier.message.broker.ConsumeResponse;
+import io.alchevrier.message.broker.ProduceResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

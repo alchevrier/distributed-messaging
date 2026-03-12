@@ -1,13 +1,17 @@
 package io.alchevrier.message.serializer
 
-import io.alchevrier.message.ConsumeRequest
-import io.alchevrier.message.ConsumeResponse
-import io.alchevrier.message.FlushRequest
-import io.alchevrier.message.FlushResponse
+import io.alchevrier.message.broker.ConsumeRequest
+import io.alchevrier.message.broker.ConsumeResponse
+import io.alchevrier.message.broker.FlushRequest
+import io.alchevrier.message.broker.FlushResponse
 import io.alchevrier.message.Message
-import io.alchevrier.message.ProduceRequest
-import io.alchevrier.message.ProduceResponse
+import io.alchevrier.message.broker.ProduceRequest
+import io.alchevrier.message.broker.ProduceResponse
 import io.alchevrier.message.Topic
+import io.alchevrier.message.raft.AppendEntriesRequest
+import io.alchevrier.message.raft.AppendEntriesResponse
+import io.alchevrier.message.raft.RequestVoteRequest
+import io.alchevrier.message.raft.RequestVoteResponse
 import spock.lang.Specification
 
 import java.util.stream.IntStream
@@ -154,5 +158,118 @@ class ByteBufferSerializerTest extends Specification {
             )
         then: "should match the result"
             response == result
+    }
+
+    def "given a request vote request then should serialize-deserialize as expected"() {
+        given: "a request vote request"
+            def request = new RequestVoteRequest(3, 1, 100, 2)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(request)
+            def result = anotherObjectUnderTest.deserializeRequestVoteRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result == request
+    }
+
+    def "given a successful request vote response then should serialize-deserialize as expected"() {
+        given: "a request vote response"
+            def response = new RequestVoteResponse(true, 2)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(response)
+            def result = anotherObjectUnderTest.deserializeRequestVoteResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result == response
+    }
+
+    def "given a non-successful request vote response then should serialize-deserialize as expected"() {
+        given: "a request vote response"
+            def response = new RequestVoteResponse(false, 2)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(response)
+            def result = anotherObjectUnderTest.deserializeRequestVoteResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result == response
+    }
+
+    def "given an append entries request then should serialize-deserialize as expected"() {
+        given: "a append entries request"
+            def request = new AppendEntriesRequest(
+                    2,
+                    1,
+                    10,
+                    9,
+                    1,
+                    new byte[][] { "Hello".getBytes(), "World".getBytes(), "This is my world".getBytes() }
+            )
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(request)
+            def result = anotherObjectUnderTest.deserializeAppendEntriesRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result.term() == request.term()
+            result.leaderId() == request.leaderId()
+            result.leaderCommitIndex() == request.leaderCommitIndex()
+            result.prevLogIndex() == request.prevLogIndex()
+            result.prevLogTerm() == request.prevLogTerm()
+            result.entries().length == request.entries().length
+
+            for (int i = 0; i < result.entries().length; i++) {
+                new String(result.entries()[i]) == new String(request.entries()[i])
+            }
+    }
+
+    def "given an heartbeat request then should serialize-deserialize as expected"() {
+        given: "an heartbeat request"
+            def request = new AppendEntriesRequest(
+                    2,
+                    1,
+                    10,
+                    9,
+                    1,
+                    new byte[][] { }
+            )
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(request)
+            def result = anotherObjectUnderTest.deserializeAppendEntriesRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result.term() == request.term()
+            result.leaderId() == request.leaderId()
+            result.leaderCommitIndex() == request.leaderCommitIndex()
+            result.prevLogIndex() == request.prevLogIndex()
+            result.prevLogTerm() == request.prevLogTerm()
+            result.entries().length == 0
+            result.entries().length == request.entries().length
+    }
+
+    def "given a successful append entries response then should serialize-deserialize as expected"() {
+        given: "a successful append entries response"
+            def response = new AppendEntriesResponse(true, 1, null, null)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(response)
+            def result = anotherObjectUnderTest.deserializeAppendEntriesResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result == response
+    }
+
+    def "given a non-successful append entries response then should serialize-deserialize as expected"() {
+        given: "a non-successful append entries response"
+            def response = new AppendEntriesResponse(false, 1, 2, 10)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(response)
+            def result = anotherObjectUnderTest.deserializeAppendEntriesResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result == response
     }
 }

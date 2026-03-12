@@ -1,4 +1,6 @@
-package io.alchevrier.message;
+package io.alchevrier.message.broker;
+
+import io.alchevrier.message.Topic;
 
 /**
  * Requesting messages for a given Topic and startingOffset and optionally asking for a specific batchSize

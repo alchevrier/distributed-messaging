@@ -1,6 +1,11 @@
 package io.alchevrier.message.serializer;
 
 import io.alchevrier.message.*;
+import io.alchevrier.message.broker.*;
+import io.alchevrier.message.raft.AppendEntriesRequest;
+import io.alchevrier.message.raft.AppendEntriesResponse;
+import io.alchevrier.message.raft.RequestVoteRequest;
+import io.alchevrier.message.raft.RequestVoteResponse;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -138,5 +143,89 @@ public class ByteBufferDeserializer {
         buffer.get(errorBytes);
 
         return new FlushResponse(new String(errorBytes));
+    }
+
+    public RequestVoteRequest deserializeRequestVoteRequest(byte[] source) {
+        var buffer = ByteBuffer.wrap(source);
+
+        var type = buffer.get();
+        if (type != REQUEST_VOTE_REQUEST) {
+            throw new IllegalArgumentException("Could not deserialize to RequestVoteRequest as it is of type: " + type);
+        }
+
+        var candidateTerm = buffer.getLong();
+        var candidateId = buffer.getInt();
+        var lastLogIndex = buffer.getLong();
+        var lastLogTerm = buffer.getLong();
+
+        return new RequestVoteRequest(candidateTerm, candidateId, lastLogIndex, lastLogTerm);
+    }
+
+    public RequestVoteResponse deserializeRequestVoteResponse(byte[] source) {
+        var buffer = ByteBuffer.wrap(source);
+
+        var type = buffer.get();
+        if (type != REQUEST_VOTE_RESPONSE) {
+            throw new IllegalArgumentException("Could not deserialize to RequestVoteResponse as it is of type: " + type);
+        }
+
+        var voteGranted = buffer.get() == (byte) 1;
+        var currentTerm = buffer.getLong();
+
+        return new RequestVoteResponse(voteGranted, currentTerm);
+    }
+
+    public AppendEntriesRequest deserializeAppendEntriesRequest(byte[] source) {
+        var buffer = ByteBuffer.wrap(source);
+
+        var type = buffer.get();
+        if (type != APPEND_ENTRIES_REQUEST) {
+            throw new IllegalArgumentException("Could not deserialize to AppendEntriesRequest as it is of type: " + type);
+        }
+
+        var term = buffer.getLong();
+        var leaderId = buffer.getInt();
+        var leaderCommitIndex = buffer.getLong();
+        var prevLogIndex = buffer.getLong();
+        var prevLogTerm = buffer.getLong();
+        var numberOfEntries = buffer.getInt();
+
+        var entries = new byte[numberOfEntries][];
+        for (var i = 0; i < numberOfEntries; i++) {
+            var lengthOfEntry = buffer.getInt();
+            var data = new byte[lengthOfEntry];
+            buffer.get(data);
+            entries[i] = data;
+        }
+
+        return new AppendEntriesRequest(
+                term,
+                leaderId,
+                leaderCommitIndex,
+                prevLogIndex,
+                prevLogTerm,
+                entries
+        );
+    }
+
+    public AppendEntriesResponse deserializeAppendEntriesResponse(byte[] source) {
+        var buffer = ByteBuffer.wrap(source);
+
+        var type = buffer.get();
+        if (type != APPEND_ENTRIES_RESPONSE) {
+            throw new IllegalArgumentException("Could not deserialize to AppendEntriesResponse as it is of type: " + type);
+        }
+
+        var success = buffer.get() == (byte) 1;
+        var term = buffer.getLong();
+
+        if (success) {
+            return new AppendEntriesResponse(true, term, null, null);
+        }
+
+        var conflictTerm = buffer.getLong();
+        var conflictIndex = buffer.getLong();
+
+        return new AppendEntriesResponse(false, term, conflictTerm, conflictIndex);
     }
 }

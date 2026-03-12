@@ -1,7 +1,7 @@
 package io.alchevrier.producer
 
-import io.alchevrier.message.ProduceRequest
-import io.alchevrier.message.ProduceResponse
+import io.alchevrier.message.broker.ProduceRequest
+import io.alchevrier.message.broker.ProduceResponse
 import io.alchevrier.message.Topic
 import spock.lang.Specification
 

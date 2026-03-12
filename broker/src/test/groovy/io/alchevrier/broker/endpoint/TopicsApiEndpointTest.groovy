@@ -1,10 +1,10 @@
 package io.alchevrier.broker.endpoint
 
 import io.alchevrier.broker.service.TopicsService
-import io.alchevrier.message.ConsumeResponse
+import io.alchevrier.message.broker.ConsumeResponse
 import io.alchevrier.message.Message
-import io.alchevrier.message.ProduceRequest
-import io.alchevrier.message.ProduceResponse
+import io.alchevrier.message.broker.ProduceRequest
+import io.alchevrier.message.broker.ProduceResponse
 import io.alchevrier.message.Topic
 import org.springframework.http.HttpStatusCode
 import spock.lang.Specification

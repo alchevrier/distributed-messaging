@@ -1,6 +1,6 @@
 package io.alchevrier.consumer;
 
-import io.alchevrier.message.ConsumeResponse;
+import io.alchevrier.message.broker.ConsumeResponse;
 import io.alchevrier.message.Topic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatusCode;

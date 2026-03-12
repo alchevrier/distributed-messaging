@@ -1,7 +1,9 @@
 package io.alchevrier.broker.endpoint;
 
 import io.alchevrier.broker.service.TopicsService;
-import io.alchevrier.message.*;
+import io.alchevrier.message.broker.ConsumeResponse;
+import io.alchevrier.message.broker.ProduceRequest;
+import io.alchevrier.message.broker.ProduceResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

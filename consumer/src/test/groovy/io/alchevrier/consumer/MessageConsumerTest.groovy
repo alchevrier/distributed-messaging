@@ -1,6 +1,6 @@
 package io.alchevrier.consumer
 
-import io.alchevrier.message.ConsumeResponse
+import io.alchevrier.message.broker.ConsumeResponse
 import io.alchevrier.message.Message
 import io.alchevrier.message.Topic
 import org.springframework.http.ResponseEntity

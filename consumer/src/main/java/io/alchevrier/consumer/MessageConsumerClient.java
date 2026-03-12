@@ -1,6 +1,6 @@
 package io.alchevrier.consumer;
 
-import io.alchevrier.message.ConsumeResponse;
+import io.alchevrier.message.broker.ConsumeResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;

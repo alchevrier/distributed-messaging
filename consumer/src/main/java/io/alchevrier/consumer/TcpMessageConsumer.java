@@ -1,7 +1,7 @@
 package io.alchevrier.consumer;
 
-import io.alchevrier.message.ConsumeRequest;
-import io.alchevrier.message.ConsumeResponse;
+import io.alchevrier.message.broker.ConsumeRequest;
+import io.alchevrier.message.broker.ConsumeResponse;
 import io.alchevrier.message.Topic;
 import io.alchevrier.message.serializer.ByteBufferDeserializer;
 import io.alchevrier.message.serializer.ByteBufferSerializer;

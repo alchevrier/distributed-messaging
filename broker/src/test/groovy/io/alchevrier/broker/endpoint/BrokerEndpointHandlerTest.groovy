@@ -1,11 +1,11 @@
 package io.alchevrier.broker.endpoint
 
 import io.alchevrier.broker.service.TopicsService
-import io.alchevrier.message.ConsumeRequest
-import io.alchevrier.message.ConsumeResponse
-import io.alchevrier.message.FlushResponse
-import io.alchevrier.message.ProduceRequest
-import io.alchevrier.message.ProduceResponse
+import io.alchevrier.message.broker.ConsumeRequest
+import io.alchevrier.message.broker.ConsumeResponse
+import io.alchevrier.message.broker.FlushResponse
+import io.alchevrier.message.broker.ProduceRequest
+import io.alchevrier.message.broker.ProduceResponse
 import io.alchevrier.message.Topic
 import io.alchevrier.message.serializer.ByteBufferDeserializer
 import io.alchevrier.message.serializer.ByteBufferSerializer

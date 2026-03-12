@@ -1,7 +1,7 @@
 package io.alchevrier.producer;
 
-import io.alchevrier.message.ProduceRequest;
-import io.alchevrier.message.ProduceResponse;
+import io.alchevrier.message.broker.ProduceRequest;
+import io.alchevrier.message.broker.ProduceResponse;
 import io.alchevrier.message.serializer.ByteBufferDeserializer;
 import io.alchevrier.message.serializer.ByteBufferSerializer;
 import io.alchevrier.tcpclient.TcpClient;

@@ -1,7 +1,7 @@
 package io.alchevrier.broker.endpoint;
 
 import io.alchevrier.broker.service.TopicsService;
-import io.alchevrier.message.FlushResponse;
+import io.alchevrier.message.broker.FlushResponse;
 import io.alchevrier.message.serializer.ByteBufferDeserializer;
 import io.alchevrier.message.serializer.ByteBufferSerializer;
 import io.alchevrier.tcpserver.ServerHandler;

@@ -1,9 +1,9 @@
 package io.alchevrier.demo;
 
 import io.alchevrier.consumer.MessageConsumer;
-import io.alchevrier.message.ConsumeResponse;
-import io.alchevrier.message.ProduceRequest;
-import io.alchevrier.message.ProduceResponse;
+import io.alchevrier.message.broker.ConsumeResponse;
+import io.alchevrier.message.broker.ProduceRequest;
+import io.alchevrier.message.broker.ProduceResponse;
 import io.alchevrier.message.Topic;
 import io.alchevrier.producer.MessageProducer;
 import org.springframework.beans.factory.annotation.Autowired;

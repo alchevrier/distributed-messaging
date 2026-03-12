@@ -1,4 +1,6 @@
-package io.alchevrier.message;
+package io.alchevrier.message.broker;
+
+import io.alchevrier.message.Message;
 
 import java.util.List;
 
