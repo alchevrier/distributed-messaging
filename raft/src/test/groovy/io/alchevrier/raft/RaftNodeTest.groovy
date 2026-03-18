@@ -1,5 +1,6 @@
 package io.alchevrier.raft
 
+import io.alchevrier.message.raft.AppendEntriesRequest
 import io.alchevrier.message.raft.RequestVoteRequest
 import io.alchevrier.message.raft.RequestVoteResponse
 import spock.lang.Specification
@@ -108,5 +109,92 @@ class RaftNodeTest extends Specification {
             objectUnderTest.votedFor == 3
             objectUnderTest.getState() == RaftState.FOLLOWER
             objectUnderTest.getLeaderState() == null
+    }
+
+    def "sendAppendEntries - when a follower is behind"() {
+        given: "3 nodes in cluster"
+            def firstPeer = new RaftPeer(2, "localhost", 9092)
+            def secondPeer = new RaftPeer(3, "localhost", 9093)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+
+
+            def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
+            raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            raftClient.requestVote(secondPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            objectUnderTest.startElection()
+
+            log.append(1, "Hello".getBytes())
+            log.append(1, "World".getBytes())
+
+            AppendEntriesRequest capturedRequest
+        when: "sending append entries"
+            objectUnderTest.sendAppendEntries(firstPeer)
+        then: "should send append entries with missing entries"
+            1 * raftClient.appendEntries(firstPeer, _) >> { peer, request -> capturedRequest = request }
+            capturedRequest.term() == 1
+            capturedRequest.leaderId() == 1
+            capturedRequest.leaderCommitIndex() == 0
+            capturedRequest.prevLogIndex() == 0
+            capturedRequest.prevLogTerm() == 0
+            capturedRequest.entries().length == 2
+            new String(capturedRequest.entries()[0]) == "Hello"
+            new String(capturedRequest.entries()[1]) == "World"
+    }
+
+    def "sendAppendEntries - when a follower is already caught up should end up as a heartbeat"() {
+        given: "3 nodes in cluster"
+            def firstPeer = new RaftPeer(2, "localhost", 9092)
+            def secondPeer = new RaftPeer(3, "localhost", 9093)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+
+            def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
+            raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            raftClient.requestVote(secondPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            objectUnderTest.startElection()
+
+            AppendEntriesRequest capturedRequest
+        when: "sending append entries"
+            objectUnderTest.sendAppendEntries(firstPeer)
+        then: "should send append entries with missing entries"
+            1 * raftClient.appendEntries(firstPeer, _) >> { peer, request -> capturedRequest = request }
+            capturedRequest.term() == 1
+            capturedRequest.leaderId() == 1
+            capturedRequest.leaderCommitIndex() == 0
+            capturedRequest.prevLogIndex() == 0
+            capturedRequest.prevLogTerm() == 0
+            capturedRequest.entries().length == 0
+    }
+
+    def "sendHeartbeats - when all followers are already caught up should end up as a heartbeat"() {
+        given: "3 nodes in cluster"
+            def firstPeer = new RaftPeer(2, "localhost", 9092)
+            def secondPeer = new RaftPeer(3, "localhost", 9093)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+
+            def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
+            raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            raftClient.requestVote(secondPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            objectUnderTest.startElection()
+
+            AppendEntriesRequest firstPeerCapturedRequest
+            AppendEntriesRequest secondPeerCapturedRequest
+        when: "sending append entries"
+            objectUnderTest.sendHeartbeats()
+        then: "should send append entries with missing entries"
+            1 * raftClient.appendEntries(firstPeer, _) >> { peer, request -> firstPeerCapturedRequest = request }
+            1 * raftClient.appendEntries(secondPeer, _) >> { peer, request -> secondPeerCapturedRequest = request }
+            firstPeerCapturedRequest.term() == 1
+            firstPeerCapturedRequest.leaderId() == 1
+            firstPeerCapturedRequest.leaderCommitIndex() == 0
+            firstPeerCapturedRequest.prevLogIndex() == 0
+            firstPeerCapturedRequest.prevLogTerm() == 0
+            firstPeerCapturedRequest.entries().length == 0
+
+            secondPeerCapturedRequest.term() == 1
+            secondPeerCapturedRequest.leaderId() == 1
+            secondPeerCapturedRequest.leaderCommitIndex() == 0
+            secondPeerCapturedRequest.prevLogIndex() == 0
+            secondPeerCapturedRequest.prevLogTerm() == 0
+            secondPeerCapturedRequest.entries().length == 0
     }
 }

@@ -1,5 +1,6 @@
 package io.alchevrier.raft;
 
+import io.alchevrier.message.raft.AppendEntriesRequest;
 import io.alchevrier.message.raft.RequestVoteRequest;
 import io.alchevrier.message.raft.RequestVoteResponse;
 
@@ -75,6 +76,25 @@ public class RaftNode {
 
         var requestForVote = new RequestVoteRequest(currentTerm, nodeId, log.getLastIndex(), log.getLastTerm());
         peers.forEach(it -> handleRequestVoteResponse(raftClient.requestVote(it, requestForVote), it.nodeId()));
+    }
+
+    public void sendHeartbeats() {
+        peers.forEach(this::sendAppendEntries);
+    }
+
+    public void sendAppendEntries(RaftPeer peer) {
+        var nextIndexForPeer = leaderState.getNextIndex(peer.nodeId());
+        var prevLogIndexForPeer = nextIndexForPeer - 1;
+        var prevLogTerm = log.getTermAt(prevLogIndexForPeer);
+
+        var entryCount = Math.max(0, log.getLastIndex() - nextIndexForPeer + 1);
+        var entries = new byte[Math.toIntExact(entryCount)][];
+        for (var i = nextIndexForPeer; i <= log.getLastIndex(); i++) {
+            entries[Math.toIntExact(i - nextIndexForPeer)] = log.get(i).data();
+        }
+
+        var appendEntries = new AppendEntriesRequest(currentTerm, nodeId, commitIndex, prevLogIndexForPeer, prevLogTerm, entries);
+        raftClient.appendEntries(peer, appendEntries);
     }
 
     private void handleRequestVoteResponse(RequestVoteResponse response, int fromNodeId) {
