@@ -7,4 +7,5 @@ public interface RaftLog {
     long getLastTerm();
     long getTermAt(long index);
     void deleteFrom(long index);
+    long scanFirst(long from, long to, LogScanFunction fn);
 }

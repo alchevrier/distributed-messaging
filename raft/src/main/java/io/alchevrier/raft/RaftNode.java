@@ -1,6 +1,7 @@
 package io.alchevrier.raft;
 
 import io.alchevrier.message.raft.AppendEntriesRequest;
+import io.alchevrier.message.raft.AppendEntriesResponse;
 import io.alchevrier.message.raft.RequestVoteRequest;
 import io.alchevrier.message.raft.RequestVoteResponse;
 
@@ -94,7 +95,52 @@ public class RaftNode {
         }
 
         var appendEntries = new AppendEntriesRequest(currentTerm, nodeId, commitIndex, prevLogIndexForPeer, prevLogTerm, entries);
+        leaderState.setLastSentIndex(peer.nodeId(), log.getLastIndex());
         raftClient.appendEntries(peer, appendEntries);
+    }
+
+    public void handleAppendEntriesResponse(AppendEntriesResponse response, int fromNodeId) {
+        if (response.term() > currentTerm) {
+            setAsFollower(response.term());
+            return;
+        }
+
+        if (state != RaftState.LEADER) {
+            return;
+        }
+
+        if (response.success()) {
+            var sentCommitIndex = leaderState.getLastSentIndex(fromNodeId);
+            leaderState.setMatchIndex(fromNodeId, sentCommitIndex);
+            leaderState.setNextIndex(fromNodeId, sentCommitIndex + 1);
+            tryAdvanceCommitIndex();
+        } else {
+            leaderState.setNextIndex(fromNodeId, findNextConflictIdx(log.getLastIndex(), response.conflictTerm(), response.conflictIndex()));
+        }
+    }
+
+    private void tryAdvanceCommitIndex() {
+        var majority = (peers.size() + 1) / 2;
+        var n = log.scanFirst(log.getLastIndex(), commitIndex + 1, ((index, entry) -> {
+            if (entry.term() != currentTerm) return false;
+            var count = 1;
+            for (var peer: peers) {
+                if (leaderState.getMatchIndex(peer.nodeId()) >= index) count++;
+            }
+            return count > majority;
+        }));
+        if (n != -1) commitIndex = n;
+    }
+
+    private long findNextConflictIdx(long lastIndex, Long conflictTerm, Long conflictIndex) {
+        if (conflictTerm == null) return conflictIndex;
+        var lastEntryIndex = this.log.scanFirst(
+                lastIndex,
+                1,
+                (_, entry) -> entry.term() == conflictTerm
+        );
+
+        return lastEntryIndex != -1 ? lastEntryIndex + 1 : conflictIndex;
     }
 
     private void handleRequestVoteResponse(RequestVoteResponse response, int fromNodeId) {
@@ -136,5 +182,9 @@ public class RaftNode {
 
     long getCurrentTerm() {
         return currentTerm;
+    }
+
+    long getCommitIndex() {
+        return commitIndex;
     }
 }

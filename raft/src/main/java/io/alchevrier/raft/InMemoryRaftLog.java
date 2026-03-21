@@ -44,4 +44,18 @@ public class InMemoryRaftLog implements RaftLog {
         if (index < 1) throw new IllegalArgumentException("Cannot delete the 'no entry' log entry");
         entries.subList((int) index, entries.size()).clear();
     }
+
+    @Override
+    public long scanFirst(long from, long to, LogScanFunction fn) {
+        if (from >= to) {
+            for (var i = (int) from; i >= to; i--) {
+                if (fn.test(i, entries.get(i))) return i;
+            }
+        } else {
+            for (var i = (int) from; i <= to; i++) {
+                if (fn.test(i, entries.get(i))) return i;
+            }
+        }
+        return -1;
+    }
 }
