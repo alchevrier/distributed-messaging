@@ -119,6 +119,51 @@ public class RaftNode {
         }
     }
 
+    public AppendEntriesResponse handleAppendEntries(AppendEntriesRequest request) {
+        if (request.term() < currentTerm) {
+            return new AppendEntriesResponse(false, currentTerm, null, null);
+        }
+
+        setAsFollower(request.term());
+
+        if (log.getLastIndex() < request.prevLogIndex()) {
+            return new AppendEntriesResponse(false, currentTerm, null, log.getLastIndex() + 1);
+        }
+
+        if (request.prevLogIndex() > 0 && log.getTermAt(request.prevLogIndex()) != request.prevLogTerm()) {
+            var conflictTerm = log.getTermAt(request.prevLogIndex());
+            var conflictIndex = log.scanFirst(1, log.getLastIndex(), (_, entry) -> entry.term() == conflictTerm);
+            return new AppendEntriesResponse(false, currentTerm, conflictTerm, conflictIndex);
+        }
+
+        var indexTermFromDeletion = -1L;
+        for (var i = 0; i < request.entries().length; i++) {
+            var indexToSearch = request.prevLogIndex() + 1 + i;
+            if (indexToSearch > log.getLastIndex()) break;
+            var possibleEntry = log.get(indexToSearch);
+            if (possibleEntry != null && possibleEntry.term() != request.term()) {
+                indexTermFromDeletion = indexToSearch;
+                break;
+            }
+        }
+
+        if (indexTermFromDeletion != -1) {
+            log.deleteFrom(indexTermFromDeletion);
+        }
+
+        var indexToInsertFrom = indexTermFromDeletion == -1
+                ? Math.max(0, log.getLastIndex() - request.prevLogIndex())  // skip already-matching entries
+                : indexTermFromDeletion - request.prevLogIndex() - 1;
+
+        for (var i = indexToInsertFrom; i < request.entries().length; i++) {
+            log.append(request.term(), request.entries()[(int) i]);
+        }
+
+        commitIndex = Math.min(request.leaderCommitIndex(), log.getLastIndex());
+
+        return new AppendEntriesResponse(true, request.term(), null, null);
+    }
+
     private void tryAdvanceCommitIndex() {
         var majority = (peers.size() + 1) / 2;
         var n = log.scanFirst(log.getLastIndex(), commitIndex + 1, ((index, entry) -> {
@@ -186,5 +231,9 @@ public class RaftNode {
 
     long getCommitIndex() {
         return commitIndex;
+    }
+
+    RaftLog log() {
+        return this.log;
     }
 }
