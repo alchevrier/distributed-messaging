@@ -5,8 +5,15 @@ plugins {
 
 dependencies {
     implementation project(':message')
+    implementation project(':tcp-server')
+    implementation project(':tcp-client')
+
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.25.3'
+    runtimeOnly 'org.apache.logging.log4j:log4j-core:2.25.3'
 
     testImplementation 'org.spockframework:spock-core:2.4-groovy-5.0'
+    testImplementation 'org.mockito:mockito-core:5.11.0'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

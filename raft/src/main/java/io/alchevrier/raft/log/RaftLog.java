@@ -1,4 +1,7 @@
-package io.alchevrier.raft;
+package io.alchevrier.raft.log;
+
+import io.alchevrier.raft.LogScanFunction;
+import io.alchevrier.raft.RaftLogEntry;
 
 public interface RaftLog {
     long append(long term, byte[] data);

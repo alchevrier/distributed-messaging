@@ -4,6 +4,8 @@ import io.alchevrier.message.raft.AppendEntriesRequest
 import io.alchevrier.message.raft.AppendEntriesResponse
 import io.alchevrier.message.raft.RequestVoteRequest
 import io.alchevrier.message.raft.RequestVoteResponse
+import io.alchevrier.raft.election.ElectionTimerService
+import io.alchevrier.raft.log.InMemoryRaftLog
 import spock.lang.Specification
 
 class RaftNodeTest extends Specification {

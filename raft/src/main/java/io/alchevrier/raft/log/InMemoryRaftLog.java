@@ -1,4 +1,7 @@
-package io.alchevrier.raft;
+package io.alchevrier.raft.log;
+
+import io.alchevrier.raft.LogScanFunction;
+import io.alchevrier.raft.RaftLogEntry;
 
 import java.util.ArrayList;
 import java.util.List;

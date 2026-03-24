@@ -1,0 +1,25 @@
+plugins {
+    id 'java'
+    id 'buildlogic.java-application-conventions'
+}
+
+dependencies {
+    implementation project(':message')
+    implementation project(':raft')
+    implementation project(':tcp-server')
+    implementation project(':tcp-client')
+
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.25.3'
+    runtimeOnly 'org.apache.logging.log4j:log4j-core:2.25.3'
+}
+
+application {
+    mainClass = 'io.alchevrier.cluster.raft.ClusterRaftNode'
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(25))
+    }
+}

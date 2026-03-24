@@ -1,4 +1,5 @@
-package io.alchevrier.raft
+package io.alchevrier.raft.log
+
 
 import spock.lang.Specification
 

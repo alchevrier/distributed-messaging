@@ -1,4 +1,4 @@
-package io.alchevrier.raft;
+package io.alchevrier.raft.election;
 
 import java.util.Random;
 import java.util.concurrent.Executors;

@@ -4,6 +4,9 @@ import io.alchevrier.message.raft.AppendEntriesRequest;
 import io.alchevrier.message.raft.AppendEntriesResponse;
 import io.alchevrier.message.raft.RequestVoteRequest;
 import io.alchevrier.message.raft.RequestVoteResponse;
+import io.alchevrier.raft.election.ElectionTimerService;
+import io.alchevrier.raft.log.RaftLog;
+import io.alchevrier.raft.transport.RaftTcpClient;
 
 import java.util.List;
 
@@ -20,7 +23,7 @@ public class RaftNode {
     private int voteReceived;
 
     private final ElectionTimerService electionTimerService;
-    private final RaftClient raftClient;
+    private RaftClient raftClient;
     private final RaftLog log;
 
     public RaftNode(
@@ -189,6 +192,9 @@ public class RaftNode {
     }
 
     private void handleRequestVoteResponse(RequestVoteResponse response, int fromNodeId) {
+        if (response == null) {
+            return;
+        }
         if (response.currentTerm() > currentTerm) {
             setAsFollower(response.currentTerm());
         }
@@ -235,5 +241,9 @@ public class RaftNode {
 
     RaftLog log() {
         return this.log;
+    }
+
+    public void setRaftClient(RaftTcpClient raftClient) {
+        this.raftClient = raftClient;
     }
 }
