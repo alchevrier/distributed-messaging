@@ -1,14 +1,13 @@
 package io.alchevrier.raft.log
 
-
 import spock.lang.Specification
 
-class InMemoryRaftLogTest extends Specification {
+class CompositeRaftLogTest extends Specification {
 
-    InMemoryRaftLog objectUnderTest
+    CompositeRaftLog objectUnderTest
 
     def setup() {
-        objectUnderTest = new InMemoryRaftLog()
+        objectUnderTest = new CompositeRaftLog(new PassthroughRaftIndexer(() -> 0L), new InMemoryRaftLogger())
     }
 
     def "by default the last index is 0 when initialized"() {
