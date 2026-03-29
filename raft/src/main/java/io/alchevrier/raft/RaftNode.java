@@ -5,10 +5,12 @@ import io.alchevrier.message.raft.AppendEntriesResponse;
 import io.alchevrier.message.raft.RequestVoteRequest;
 import io.alchevrier.message.raft.RequestVoteResponse;
 import io.alchevrier.raft.election.ElectionTimerService;
+import io.alchevrier.raft.election.HeartbeatTimerService;
 import io.alchevrier.raft.log.RaftLog;
 import io.alchevrier.raft.transport.RaftTcpClient;
 
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class RaftNode {
     private int nodeId;
@@ -23,21 +25,27 @@ public class RaftNode {
     private int voteReceived;
 
     private final ElectionTimerService electionTimerService;
+    private final HeartbeatTimerService heartbeatTimerService;
     private RaftClient raftClient;
     private final RaftLog log;
+    private final ReentrantLock lock;
 
     public RaftNode(
             int nodeId,
             List<RaftPeer> peers,
             RaftLog log,
             RaftClient raftClient,
-            ElectionTimerService electionTimerService
+            ElectionTimerService electionTimerService,
+            HeartbeatTimerService heartbeatTimerService
     ) {
         this.nodeId = nodeId;
         this.peers = peers;
         this.log = log;
         this.raftClient = raftClient;
         this.electionTimerService = electionTimerService;
+        this.heartbeatTimerService = heartbeatTimerService;
+
+        this.lock = new ReentrantLock();
 
         state = RaftState.FOLLOWER;
         currentTerm = 0;
@@ -48,45 +56,73 @@ public class RaftNode {
         leaderState = null;
     }
 
+    public void start() {
+        this.electionTimerService.resetTimer(this::startElection);
+    }
+
     public RequestVoteResponse handleRequestVote(RequestVoteRequest request) {
-        if (request.candidateTerm() > currentTerm) {
-            setAsFollower(request.candidateTerm());
+        this.lock.lock();
+        try {
+            if (request.candidateTerm() > currentTerm) {
+                setAsFollower(request.candidateTerm());
+            }
+
+            var voteGranted = request.candidateTerm() >= currentTerm &&
+                    (votedFor == null || votedFor == request.candidateId()) &&
+                    (request.lastLogTerm() > log.getLastTerm() ||
+                            (request.lastLogTerm() == log.getLastTerm() && request.lastLogIndex() >= log.getLastIndex()));
+
+            if (voteGranted) {
+                votedFor = request.candidateId();
+            }
+
+            return new RequestVoteResponse(voteGranted, currentTerm);
+        } finally {
+            this.lock.unlock();
         }
-
-        var voteGranted = request.candidateTerm() >= currentTerm &&
-                (votedFor == null || votedFor == request.candidateId()) &&
-                (request.lastLogTerm() > log.getLastTerm() ||
-                        (request.lastLogTerm() == log.getLastTerm() && request.lastLogIndex() >= log.getLastIndex()));
-
-        if (voteGranted) {
-            votedFor = request.candidateId();
-        }
-
-        return new RequestVoteResponse(voteGranted, currentTerm);
     }
 
     public void startElection() {
-        state = RaftState.CANDIDATE;
-        currentTerm++;
-        votedFor = nodeId;
-        voteReceived = 1;
+        this.lock.lock();
+        try {
+            state = RaftState.CANDIDATE;
+            currentTerm++;
+            votedFor = nodeId;
+            voteReceived = 1;
 
-        electionTimerService.resetTimer(this::startElection);
+            electionTimerService.resetTimer(this::startElection);
 
-        if (voteReceived > peers.size() / 2) {
-            setAsLeader();
-            return;
+            if (voteReceived > peers.size() / 2) {
+                setAsLeader();
+                return;
+            }
+
+            var requestForVote = new RequestVoteRequest(currentTerm, nodeId, log.getLastIndex(), log.getLastTerm());
+            peers.forEach(it -> handleRequestVoteResponse(raftClient.requestVote(it, requestForVote), it.nodeId()));
+        } finally {
+            this.lock.unlock();
         }
-
-        var requestForVote = new RequestVoteRequest(currentTerm, nodeId, log.getLastIndex(), log.getLastTerm());
-        peers.forEach(it -> handleRequestVoteResponse(raftClient.requestVote(it, requestForVote), it.nodeId()));
     }
 
     public void sendHeartbeats() {
-        peers.forEach(this::sendAppendEntries);
+        this.lock.lock();
+        try {
+            peers.forEach(this::sendAppendEntriesUnlocked);
+        } finally {
+            this.lock.unlock();
+        }
     }
 
     public void sendAppendEntries(RaftPeer peer) {
+        this.lock.lock();
+        try {
+            this.sendAppendEntriesUnlocked(peer);
+        } finally {
+            this.lock.unlock();
+        }
+    }
+
+    private void sendAppendEntriesUnlocked(RaftPeer peer) {
         var nextIndexForPeer = leaderState.getNextIndex(peer.nodeId());
         var prevLogIndexForPeer = nextIndexForPeer - 1;
         var prevLogTerm = log.getTermAt(prevLogIndexForPeer);
@@ -103,68 +139,87 @@ public class RaftNode {
     }
 
     public void handleAppendEntriesResponse(AppendEntriesResponse response, int fromNodeId) {
-        if (response.term() > currentTerm) {
-            setAsFollower(response.term());
-            return;
-        }
+        this.lock.lock();
+        try {
+            if (response.term() > currentTerm) {
+                setAsFollower(response.term());
+                return;
+            }
 
-        if (state != RaftState.LEADER) {
-            return;
-        }
+            if (state != RaftState.LEADER) {
+                return;
+            }
 
-        if (response.success()) {
-            var sentCommitIndex = leaderState.getLastSentIndex(fromNodeId);
-            leaderState.setMatchIndex(fromNodeId, sentCommitIndex);
-            leaderState.setNextIndex(fromNodeId, sentCommitIndex + 1);
-            tryAdvanceCommitIndex();
-        } else {
-            leaderState.setNextIndex(fromNodeId, findNextConflictIdx(log.getLastIndex(), response.conflictTerm(), response.conflictIndex()));
+            if (response.success()) {
+                var sentCommitIndex = leaderState.getLastSentIndex(fromNodeId);
+                leaderState.setMatchIndex(fromNodeId, sentCommitIndex);
+                leaderState.setNextIndex(fromNodeId, sentCommitIndex + 1);
+                tryAdvanceCommitIndex();
+            } else {
+                leaderState.setNextIndex(fromNodeId, findNextConflictIdx(log.getLastIndex(), response.conflictTerm(), response.conflictIndex()));
+            }
+        } finally {
+            this.lock.unlock();
         }
     }
 
     public AppendEntriesResponse handleAppendEntries(AppendEntriesRequest request) {
-        if (request.term() < currentTerm) {
-            return new AppendEntriesResponse(false, currentTerm, null, null);
-        }
-
-        setAsFollower(request.term());
-
-        if (log.getLastIndex() < request.prevLogIndex()) {
-            return new AppendEntriesResponse(false, currentTerm, null, log.getLastIndex() + 1);
-        }
-
-        if (request.prevLogIndex() > 0 && log.getTermAt(request.prevLogIndex()) != request.prevLogTerm()) {
-            var conflictTerm = log.getTermAt(request.prevLogIndex());
-            var conflictIndex = log.scanFirst(1, log.getLastIndex(), (_, entry) -> entry.term() == conflictTerm);
-            return new AppendEntriesResponse(false, currentTerm, conflictTerm, conflictIndex);
-        }
-
-        var indexTermFromDeletion = -1L;
-        for (var i = 0; i < request.entries().length; i++) {
-            var indexToSearch = request.prevLogIndex() + 1 + i;
-            if (indexToSearch > log.getLastIndex()) break;
-            var possibleEntry = log.get(indexToSearch);
-            if (possibleEntry != null && possibleEntry.term() != request.term()) {
-                indexTermFromDeletion = indexToSearch;
-                break;
+        this.lock.lock();
+        try {
+            if (request.term() < currentTerm) {
+                return new AppendEntriesResponse(false, currentTerm, null, null);
             }
+
+            setAsFollower(request.term());
+
+            if (log.getLastIndex() < request.prevLogIndex()) {
+                return new AppendEntriesResponse(false, currentTerm, null, log.getLastIndex() + 1);
+            }
+
+            if (request.prevLogIndex() > 0 && log.getTermAt(request.prevLogIndex()) != request.prevLogTerm()) {
+                var conflictTerm = log.getTermAt(request.prevLogIndex());
+                var conflictIndex = log.scanFirst(1, log.getLastIndex(), (_, entry) -> entry.term() == conflictTerm);
+                return new AppendEntriesResponse(false, currentTerm, conflictTerm, conflictIndex);
+            }
+
+            var indexTermFromDeletion = -1L;
+            for (var i = 0; i < request.entries().length; i++) {
+                var indexToSearch = request.prevLogIndex() + 1 + i;
+                if (indexToSearch > log.getLastIndex()) break;
+                var possibleEntry = log.get(indexToSearch);
+                if (possibleEntry != null && possibleEntry.term() != request.term()) {
+                    indexTermFromDeletion = indexToSearch;
+                    break;
+                }
+            }
+
+            if (indexTermFromDeletion != -1) {
+                log.deleteFrom(indexTermFromDeletion);
+            }
+
+            var indexToInsertFrom = indexTermFromDeletion == -1
+                    ? Math.max(0, log.getLastIndex() - request.prevLogIndex())  // skip already-matching entries
+                    : indexTermFromDeletion - request.prevLogIndex() - 1;
+
+            for (var i = indexToInsertFrom; i < request.entries().length; i++) {
+                log.append(request.term(), request.entries()[(int) i]);
+            }
+
+            commitIndex = Math.min(request.leaderCommitIndex(), log.getLastIndex());
+
+            return new AppendEntriesResponse(true, request.term(), null, null);
+        } finally {
+            this.lock.unlock();
         }
+    }
 
-        if (indexTermFromDeletion != -1) {
-            log.deleteFrom(indexTermFromDeletion);
+    public void setRaftClient(RaftTcpClient raftClient) {
+        this.lock.lock();
+        try {
+            this.raftClient = raftClient;
+        } finally {
+            this.lock.unlock();
         }
-
-        var indexToInsertFrom = indexTermFromDeletion == -1
-                ? Math.max(0, log.getLastIndex() - request.prevLogIndex())  // skip already-matching entries
-                : indexTermFromDeletion - request.prevLogIndex() - 1;
-
-        for (var i = indexToInsertFrom; i < request.entries().length; i++) {
-            log.append(request.term(), request.entries()[(int) i]);
-        }
-
-        commitIndex = Math.min(request.leaderCommitIndex(), log.getLastIndex());
-
-        return new AppendEntriesResponse(true, request.term(), null, null);
     }
 
     private void tryAdvanceCommitIndex() {
@@ -207,9 +262,12 @@ public class RaftNode {
     }
 
     private void setAsLeader() {
+        if (state == RaftState.LEADER) return;
+
         state = RaftState.LEADER;
         leaderState = new LeaderState();
         leaderState.initForPeers(peers, log.getLastIndex());
+        heartbeatTimerService.startTimer(this::sendHeartbeats);
     }
 
     private void setAsFollower(long term) {
@@ -241,9 +299,5 @@ public class RaftNode {
 
     RaftLog log() {
         return this.log;
-    }
-
-    public void setRaftClient(RaftTcpClient raftClient) {
-        this.raftClient = raftClient;
     }
 }

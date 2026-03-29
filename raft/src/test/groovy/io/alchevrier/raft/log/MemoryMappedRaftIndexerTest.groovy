@@ -24,13 +24,17 @@ class MemoryMappedRaftIndexerTest extends Specification {
         indexer?.close()  // Safe close even if test fails
     }
 
-    def "appending multiple times to the file - should give correct position"() {
+    def "appending multiple times to the file then delete from - should give correct position"() {
         given: "a new indexer"
             indexer = new MemoryMappedRaftIndexer(pathName, 1000L)
         when: "when appending multiple times to it"
             indexer.append(1, 10)
             indexer.append(2, 18)
             indexer.append(3, 20)
+            indexer.append(4, 100)
+            indexer.append(5, 100)
+            indexer.append(6, 100)
+            indexer.deleteFrom(4)
         then: "then should provide the correct position"
             indexer.getPosition(1) == 10
             indexer.getPosition(3) == 20
@@ -38,10 +42,9 @@ class MemoryMappedRaftIndexerTest extends Specification {
 
             indexer.close()
             def recoveredIndexer = new MemoryMappedRaftIndexer(pathName, 1000L)
-            recoveredIndexer.recover() == 3
+            recoveredIndexer.recover() == 4
             recoveredIndexer.getPosition(1) == 10
             recoveredIndexer.getPosition(3) == 20
             recoveredIndexer.getPosition(2) == 18
-
     }
 }

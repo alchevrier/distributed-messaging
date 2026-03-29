@@ -5,6 +5,7 @@ import io.alchevrier.message.raft.AppendEntriesResponse
 import io.alchevrier.message.raft.RequestVoteRequest
 import io.alchevrier.message.raft.RequestVoteResponse
 import io.alchevrier.raft.election.ElectionTimerService
+import io.alchevrier.raft.election.HeartbeatTimerService
 import io.alchevrier.raft.log.InMemoryRaftLog
 import spock.lang.Specification
 
@@ -12,11 +13,12 @@ class RaftNodeTest extends Specification {
 
     def raftClient = Mock(RaftClient)
     def electionTimer = Mock(ElectionTimerService)
+    def heartbeatTimer = Mock(HeartbeatTimerService)
     def log = new InMemoryRaftLog()
 
     def "startElection - single node in cluster"() {
         given: "a single node in cluster"
-            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
         when: "starting an election"
             objectUnderTest.startElection()
         then: "should win immediately"
@@ -24,11 +26,22 @@ class RaftNodeTest extends Specification {
             objectUnderTest.leaderState != null
     }
 
+
+
+    def "startElection - single node in cluster and setting election timer on start"() {
+        given: "a single node in cluster"
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
+        when: "starting an election"
+            objectUnderTest.start()
+        then: "should win immediately and set the election timer"
+            1 * electionTimer.resetTimer(_)
+    }
+
     def "startElection - 3 node cluster majority"() {
         given: "3 nodes in cluster"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
         when: "starting an election"
@@ -36,6 +49,7 @@ class RaftNodeTest extends Specification {
         then: "should win if peers vote for node"
             1 * raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
             1 * raftClient.requestVote(secondPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            1 * heartbeatTimer.startTimer(_)
             objectUnderTest.getState() == RaftState.LEADER
             objectUnderTest.leaderState != null
             objectUnderTest.leaderState.getNextIndex(2) == 1
@@ -46,7 +60,7 @@ class RaftNodeTest extends Specification {
 
     def "handleRequestVote - empty log valid candidate should grants vote"() {
         given: "a cluster and a valid vote"
-            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
             def validVote = new RequestVoteRequest(2, 3, 2, 2)
         when: "handling a request vote"
             def result = objectUnderTest.handleRequestVote(validVote)
@@ -62,7 +76,7 @@ class RaftNodeTest extends Specification {
 
     def "handleRequestVote - two votes and one already valid the second one should be denied"() {
         given: "a cluster and two valid vote from different nodes"
-            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
             def validVote = new RequestVoteRequest(2, 3, 2, 2)
             def secondValidVote = new RequestVoteRequest(2, 4, 2, 2)
         when: "handling two request votes"
@@ -80,7 +94,7 @@ class RaftNodeTest extends Specification {
 
     def "handleRequestVote - log not empty and vote is given from a candidate term behind our log should be denied"() {
         given: "a cluster with a non-empty node and a vote behind of our current log"
-            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
             objectUnderTest.startElection()
             log.append(1, new byte[0])
             def behindVote = new RequestVoteRequest(0, 3, 0, 0)
@@ -98,7 +112,7 @@ class RaftNodeTest extends Specification {
 
     def "handleRequestVote - log not empty and vote is given from a candidate term way higher than ours then should grant and revert to FOLLOWER"() {
         given: "a cluster with a non-empty node and a vote ahead of our current log"
-            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
             objectUnderTest.startElection()
             log.append(1, new byte[0])
             def behindVote = new RequestVoteRequest(6, 3, 6, 6)
@@ -118,7 +132,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
 
             def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
@@ -148,7 +162,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
             raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
@@ -172,7 +186,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
             raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
@@ -205,7 +219,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster, ours being the current LEADER"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
             raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
@@ -224,7 +238,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
             raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(false, 0)
@@ -244,7 +258,7 @@ class RaftNodeTest extends Specification {
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
             def thirdPeer = new RaftPeer(4, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer, thirdPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer, thirdPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 1)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 1)
@@ -278,7 +292,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
             raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
@@ -295,7 +309,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 0)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 0)
@@ -318,7 +332,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 0)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 0)
@@ -341,7 +355,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 0)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 0)
@@ -360,7 +374,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 0)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 0)
@@ -380,7 +394,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 0)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 0)
@@ -411,7 +425,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 0)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 0)
@@ -434,7 +448,7 @@ class RaftNodeTest extends Specification {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)
             def secondPeer = new RaftPeer(3, "localhost", 9093)
-            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
 
             raftClient.requestVote(firstPeer, _) >> new RequestVoteResponse(true, 0)
             raftClient.requestVote(secondPeer, _) >> new RequestVoteResponse(true, 0)

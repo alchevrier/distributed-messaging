@@ -5,7 +5,10 @@ import io.alchevrier.message.serializer.ByteBufferSerializer;
 import io.alchevrier.raft.RaftNode;
 import io.alchevrier.raft.RaftPeer;
 import io.alchevrier.raft.election.ScheduledElectionTimerService;
-import io.alchevrier.raft.log.InMemoryRaftLog;
+import io.alchevrier.raft.election.ScheduledHeartbeatTimerService;
+import io.alchevrier.raft.log.CompositeRaftLog;
+import io.alchevrier.raft.log.FileChannelRaftLogger;
+import io.alchevrier.raft.log.MemoryMappedRaftIndexer;
 import io.alchevrier.raft.transport.RaftServerHandler;
 import io.alchevrier.raft.transport.RaftTcpClient;
 import io.alchevrier.tcpclient.TcpClient;
@@ -42,19 +45,22 @@ public class ClusterRaftNode {
         var raftNode = new RaftNode(
                 nodeId,
                 raftPeers,
-                new InMemoryRaftLog(),
+                new CompositeRaftLog(
+                        new MemoryMappedRaftIndexer(props.getProperty("raft.indexer.path"), Long.parseLong(props.getProperty("raft.indexer.size"))),
+                        new FileChannelRaftLogger(props.getProperty("raft.logger.path"))
+                ),
                 null,
-                new ScheduledElectionTimerService()
+                new ScheduledElectionTimerService(
+                        Long.parseLong(props.getProperty("scheduled.triggerElection.lowerBound")),
+                        Long.parseLong(props.getProperty("scheduled.triggerElection.upperBound"))
+                ),
+                new ScheduledHeartbeatTimerService(Long.parseLong(props.getProperty("scheduled.heartbeat.fixedRate")))
         );
 
         var raftClient = new RaftTcpClient(clients, serializer, deserializer, raftNode::handleAppendEntriesResponse);
-
         raftNode.setRaftClient(raftClient);
-
+        raftNode.start();
         var serverHandler = new RaftServerHandler(serializer, deserializer, raftNode);
-
         new TcpServer(nodePort, serverHandler).start();
-
-        raftNode.startElection();
     }
 }

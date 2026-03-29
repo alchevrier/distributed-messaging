@@ -17,7 +17,7 @@ public class TcpServer implements AutoCloseable {
     private final int port;
     private final ServerHandler serverHandler;
 
-    private boolean gracefullyShutdown;
+    private volatile boolean gracefullyShutdown;
 
     private final AtomicInteger connCounter = new AtomicInteger(0);
 

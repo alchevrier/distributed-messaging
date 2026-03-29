@@ -9,10 +9,14 @@ import java.util.concurrent.TimeUnit;
 public class ScheduledElectionTimerService implements ElectionTimerService {
 
     private final ScheduledExecutorService scheduledExecutorService;
+    private final long timeoutLowerBound;
+    private final long timeoutUppedBound;
     private ScheduledFuture<?> nextElectionHandler;
 
-    public ScheduledElectionTimerService() {
+    public ScheduledElectionTimerService(long timeoutLowerBound, long timeoutUppedBound) {
         scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        this.timeoutLowerBound = timeoutLowerBound;
+        this.timeoutUppedBound = timeoutUppedBound;
     }
 
     public void resetTimer(Runnable electionFn) {
@@ -20,7 +24,7 @@ public class ScheduledElectionTimerService implements ElectionTimerService {
             nextElectionHandler.cancel(true);
         }
         var random = new Random();
-        var timeout = random.nextLong(150, 300);
+        var timeout = random.nextLong(timeoutLowerBound, timeoutUppedBound);
         nextElectionHandler = scheduledExecutorService.schedule(electionFn, timeout, TimeUnit.MILLISECONDS);
     }
 }

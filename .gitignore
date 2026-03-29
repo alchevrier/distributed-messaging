@@ -35,3 +35,8 @@ build
 **/tmp
 
 .idea
+
+.metals/
+.vscode/
+
+**/bin
