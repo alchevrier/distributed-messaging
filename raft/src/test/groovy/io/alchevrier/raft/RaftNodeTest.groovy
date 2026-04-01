@@ -1,7 +1,9 @@
 package io.alchevrier.raft
 
+import io.alchevrier.message.raft.AckMode
 import io.alchevrier.message.raft.AppendEntriesRequest
 import io.alchevrier.message.raft.AppendEntriesResponse
+import io.alchevrier.message.raft.AppendRequest
 import io.alchevrier.message.raft.RequestVoteRequest
 import io.alchevrier.message.raft.RequestVoteResponse
 import io.alchevrier.raft.election.ElectionTimerService
@@ -56,6 +58,108 @@ class RaftNodeTest extends Specification {
             objectUnderTest.leaderState.getMatchIndex(2) == 0
             objectUnderTest.leaderState.getNextIndex(3) == 1
             objectUnderTest.leaderState.getMatchIndex(3) == 0
+    }
+
+    def "append - given node is follower, when append called, then returns failed future immediately"(AckMode ackMode) {
+        given: "a node that is a follower"
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
+        when: "appending"
+            def result = objectUnderTest.append(new AppendRequest("Hello", new byte[0][0], ackMode))
+        then: "returns failed future immediately"
+            result.isDone()
+            def response = result.get()
+            !response.success()
+            response.peersAck() == null
+
+        where:
+            ackMode << [AckMode.ALL, AckMode.LEADER, AckMode.NONE]
+
+    }
+
+    def "append - given node is leader, when append with ack=NONE and valid key, then entry persisted in log and future has no value"() {
+        given: "a node that is a leader"
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
+            objectUnderTest.startElection()
+        when: "appending with ack=NONE"
+            def result = objectUnderTest.append(new AppendRequest("Hello", new byte[][] { "Hello".getBytes() }, AckMode.NONE))
+        then: "returns future with no value"
+            result.isDone()
+            result.get() == null
+            objectUnderTest.log().lastIndex == 1
+            def logEntry = objectUnderTest.log().get(1)
+            logEntry.term() == 1
+            new String(logEntry.data()) == "Hello"
+    }
+
+    def "append - given node is leader, when append with ack=LEADER and valid key, then returns completed future with success"() {
+        given: "a node that is a leader"
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
+            objectUnderTest.startElection()
+        when: "appending with ack=LEADER"
+            def result = objectUnderTest.append(new AppendRequest("Hello", new byte[][] { "Hello".getBytes() }, AckMode.LEADER))
+        then: "returns completed future with success"
+            result.isDone()
+            var response = result.get()
+            response.success()
+            response.peersAck() == null
+            objectUnderTest.log().lastIndex == 1
+            def logEntry = objectUnderTest.log().get(1)
+            logEntry.term() == 1
+            new String(logEntry.data()) == "Hello"
+    }
+
+    def "append - given node is leader, when same key submitted twice for ackMode=NONE or LEADER then log appended only once"(AckMode ackMode) {
+        given: "a node that is a leader"
+            def objectUnderTest = new RaftNode(1, Collections.emptyList(), log, raftClient, electionTimer, heartbeatTimer)
+            objectUnderTest.startElection()
+        when: "appending with ack=LEADER"
+            objectUnderTest.append(new AppendRequest("Hello", new byte[][] { "Hello".getBytes() }, ackMode))
+            def result = objectUnderTest.append(new AppendRequest("Hello", new byte[][] { "Hello".getBytes() }, ackMode))
+        then: "returns completed future with success"
+            result.isDone()
+            var response = result.get()
+            !response.success()
+            response.peersAck() == null
+            objectUnderTest.log().lastIndex == 1
+            def logEntry = objectUnderTest.log().get(1)
+            logEntry.term() == 1
+            new String(logEntry.data()) == "Hello"
+
+        where:
+            ackMode << [AckMode.LEADER, AckMode.NONE]
+    }
+
+    def "append - given node is leader, when append with ack=ALL and valid key, then returns non completed future until tryAdvanceCommitIndex is called"() {
+        given: "a node that is a leader"
+            def firstPeer = new RaftPeer(2, "localhost", 9092)
+        when: "appending with ack=LEADER"
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer), log, raftClient, electionTimer, heartbeatTimer)
+            objectUnderTest.startElection()
+            def result = objectUnderTest.append(new AppendRequest("Hello", new byte[][] { "Hello".getBytes() }, AckMode.ALL))
+        then: "returns non-completed future"
+            !result.isDone()
+            // should be persisted in our log already as we append entries on the leader first
+            objectUnderTest.log().lastIndex == 1
+            def logEntry = objectUnderTest.log().get(1)
+            logEntry.term() == 1
+            new String(logEntry.data()) == "Hello"
+        when: "handling a successful append entries response"
+            objectUnderTest.sendAppendEntries(firstPeer) // setting lastIndex for the firstPeer
+            objectUnderTest.handleAppendEntriesResponse(new AppendEntriesResponse(true, 1L, null, null), 2)
+        then: "should have completed the future as peers has signaled it has appended our entries"
+            result.isDone()
+            def response = result.get()
+            response.success()
+            response.peersAck().size() == 1
+            response.peersAck().get(2) == true
+        when: "attempting to append the same entry again"
+            def failedResult = objectUnderTest.append(new AppendRequest("Hello", new byte[][] { "Hello".getBytes() }, AckMode.ALL))
+        then: "should return a failed completed future immediately"
+            failedResult.isDone()
+            def failedResponse = failedResult.get()
+            !failedResponse.success()
+            failedResponse.peersAck() == null
+            objectUnderTest.log().lastIndex == 1
     }
 
     def "handleRequestVote - empty log valid candidate should grants vote"() {

@@ -2,13 +2,18 @@ package io.alchevrier.message.serializer;
 
 import io.alchevrier.message.*;
 import io.alchevrier.message.broker.*;
+import io.alchevrier.message.raft.AckMode;
 import io.alchevrier.message.raft.AppendEntriesRequest;
 import io.alchevrier.message.raft.AppendEntriesResponse;
+import io.alchevrier.message.raft.AppendRequest;
+import io.alchevrier.message.raft.AppendResponse;
 import io.alchevrier.message.raft.RequestVoteRequest;
 import io.alchevrier.message.raft.RequestVoteResponse;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import static io.alchevrier.message.serializer.MessageType.*;
 
@@ -227,5 +232,59 @@ public class ByteBufferDeserializer {
         var conflictIndex = buffer.getLong();
 
         return new AppendEntriesResponse(false, term, conflictTerm, conflictIndex);
+    }
+
+    public AppendRequest deserializeAppendRequest(byte[] source) {
+        var buffer = ByteBuffer.wrap(source);
+
+        var type = buffer.get();
+        if (type != APPEND_REQUEST) {
+            throw new IllegalArgumentException("Could not deserialize to AppendRequest for type: " + type);
+        }
+
+        var keyLength = buffer.getInt();
+        var keyBuf = new byte[keyLength];
+        buffer.get(keyBuf);
+        var ackMode = toAckMode(buffer.get());
+
+        var entriesSize = buffer.getInt();
+        var entries = new byte[entriesSize][];
+        for (var i = 0; i < entriesSize; i++) {
+            var entryLength = buffer.getInt();
+            var entry = new byte[entryLength];
+            buffer.get(entry);
+            entries[i] = entry;
+        }
+        return new AppendRequest(new String(keyBuf), entries, ackMode);
+    }
+
+    private AckMode toAckMode(byte ackModeByte) {
+        return switch (ackModeByte) {
+            case 0x00 -> AckMode.NONE;
+            case 0x01 -> AckMode.LEADER;
+            case 0x02 -> AckMode.ALL;
+            default -> throw new IllegalArgumentException("Can not resolve ackMode for byte: " + ackModeByte);
+        };
+    }
+
+    public AppendResponse deserializeAppendResponse(byte[] source) {
+        var buffer = ByteBuffer.wrap(source);
+
+        var type = buffer.get();
+        if (type != APPEND_RESPONSE) {
+            throw new IllegalArgumentException("Could not deserialize to AppendResponse for type: " + type);
+        }
+
+        var success = buffer.get() == (byte) 1;
+        var peerSize = buffer.getInt();
+        var peersAck = new HashMap<Integer, Boolean>();
+        if (peerSize == 0) {
+            return new AppendResponse(success, null);
+        }
+        while (peerSize > 0) {
+            peersAck.put(buffer.getInt(), buffer.get() == (byte) 1);
+            peerSize--;
+        }
+        return new AppendResponse(success, peersAck);
     }
 }

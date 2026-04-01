@@ -2,6 +2,8 @@ package io.alchevrier.raft;
 
 import io.alchevrier.message.raft.AppendEntriesRequest;
 import io.alchevrier.message.raft.AppendEntriesResponse;
+import io.alchevrier.message.raft.AppendRequest;
+import io.alchevrier.message.raft.AppendResponse;
 import io.alchevrier.message.raft.RequestVoteRequest;
 import io.alchevrier.message.raft.RequestVoteResponse;
 import io.alchevrier.raft.election.ElectionTimerService;
@@ -9,9 +11,16 @@ import io.alchevrier.raft.election.HeartbeatTimerService;
 import io.alchevrier.raft.log.RaftLog;
 import io.alchevrier.raft.transport.RaftTcpClient;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
+// Current design is too monolithic need to split behaviour and make this class an orchestrator of the different behaviours
 public class RaftNode {
     private int nodeId;
     private long currentTerm;
@@ -29,6 +38,9 @@ public class RaftNode {
     private RaftClient raftClient;
     private final RaftLog log;
     private final ReentrantLock lock;
+    private final Map<Long, CompletableFuture<AppendResponse>> pendingAppends;
+    private final Map<String, Long> inflightKeys;
+    private final Set<String> committedKeys;
 
     public RaftNode(
             int nodeId,
@@ -46,6 +58,9 @@ public class RaftNode {
         this.heartbeatTimerService = heartbeatTimerService;
 
         this.lock = new ReentrantLock();
+        this.pendingAppends = new HashMap<>();
+        this.inflightKeys = new HashMap<>();
+        this.committedKeys = new HashSet<>();
 
         state = RaftState.FOLLOWER;
         currentTerm = 0;
@@ -101,6 +116,60 @@ public class RaftNode {
             peers.forEach(it -> handleRequestVoteResponse(raftClient.requestVote(it, requestForVote), it.nodeId()));
         } finally {
             this.lock.unlock();
+        }
+    }
+
+    public CompletableFuture<AppendResponse> append(AppendRequest request) {
+        this.lock.lock();
+        try {
+            if (this.committedKeys.contains(request.key())) {
+                // We have already commited this request and therefore are now rejecting it
+                return CompletableFuture.completedFuture(new AppendResponse(false, null));
+            }
+            if (this.inflightKeys.containsKey(request.key())) {
+                return this.pendingAppends.get(this.inflightKeys.get(request.key()));
+            }
+            if (state != RaftState.LEADER) return CompletableFuture.completedFuture(new AppendResponse(false, null));
+            switch (request.ackMode()) {
+                case NONE -> {
+                    var result = appendInternal(request);
+                    if (result.success()) {
+                        committedKeys.add(request.key());
+                    }
+                    return CompletableFuture.completedFuture(null);
+                }
+                case LEADER -> {
+                    var response = appendInternal(request);
+                    if (response.success()) {
+                        committedKeys.add(request.key());
+                    }
+                    return CompletableFuture.completedFuture(response);
+                }
+                case ALL -> {
+                    var leader = appendInternal(request);
+                    if (!leader.success()) {
+                        return CompletableFuture.completedFuture(new AppendResponse(false, null));
+                    }
+                    var leaderCompletableFuture = new CompletableFuture<AppendResponse>();
+                    pendingAppends.put(log.getLastIndex(), leaderCompletableFuture);
+                    inflightKeys.put(request.key(), log.getLastIndex());
+                    return leaderCompletableFuture;
+                }
+            }
+        } finally {
+            this.lock.unlock();
+        }
+        return null;
+    }
+
+    private AppendResponse appendInternal(AppendRequest request) {
+        try {
+            for (var entry: request.entries()) {
+                log.append(currentTerm, entry);
+            }
+            return new AppendResponse(true, null);
+        } catch (Exception e) {
+            return new AppendResponse(false, null);
         }
     }
 
@@ -233,6 +302,28 @@ public class RaftNode {
             return count > majority;
         }));
         if (n != -1) commitIndex = n;
+
+        // One caveat here is that the matchIndex might have been moved by sendHeartbeat which is different from the original append request
+        // This is fine as it still means the RaftNode is in a correct state
+        pendingAppends.entrySet().removeIf(it -> {
+            if (it.getKey() <= commitIndex) {
+                it.getValue().complete(
+                        new AppendResponse(true,
+                                peers.stream().collect(Collectors.toMap(RaftPeer::nodeId,
+                                        (peer) -> leaderState.getMatchIndex(peer.nodeId()) >= it.getKey())))
+                );
+                this.inflightKeys.entrySet().removeIf(entry -> {
+                    if (entry.getValue().equals(it.getKey())) {
+                        this.committedKeys.add(entry.getKey());
+                        return true;
+                    }
+                    return false;
+                });
+
+                return true;
+            }
+            return false;
+        });
     }
 
     private long findNextConflictIdx(long lastIndex, Long conflictTerm, Long conflictIndex) {

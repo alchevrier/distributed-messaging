@@ -21,11 +21,15 @@ public class MessageType {
      * 51: REQUEST_VOTE_RESPONSE
      * 52: APPEND_ENTRIES_REQUEST
      * 53: APPEND_ENTRIES_RESPONSE
+     * 54: APPEND_REQUEST
+     * 55: APPEND_RESPONSE
      */
     public static final byte REQUEST_VOTE_REQUEST = 0x50;
     public static final byte REQUEST_VOTE_RESPONSE = 0x51;
     public static final byte APPEND_ENTRIES_REQUEST = 0x52;
     public static final byte APPEND_ENTRIES_RESPONSE = 0x53;
+    public static final byte APPEND_REQUEST = 0x54;
+    public static final byte APPEND_RESPONSE = 0x55;
 
     /**
      * 70: CHECK_LEADERSHIP_OF_PARTITION_REQUEST

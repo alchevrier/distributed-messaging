@@ -1,15 +1,20 @@
 package io.alchevrier.message.serializer;
 
 import io.alchevrier.message.broker.*;
+import io.alchevrier.message.raft.AckMode;
 import io.alchevrier.message.raft.AppendEntriesRequest;
 import io.alchevrier.message.raft.AppendEntriesResponse;
+import io.alchevrier.message.raft.AppendRequest;
+import io.alchevrier.message.raft.AppendResponse;
 import io.alchevrier.message.raft.RequestVoteRequest;
 import io.alchevrier.message.raft.RequestVoteResponse;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static io.alchevrier.message.serializer.MessageType.*;
+import static java.util.Collections.emptyMap;
 
 public class ByteBufferSerializer {
     public byte[] serialize(ConsumeRequest consumeRequest) {
@@ -202,5 +207,50 @@ public class ByteBufferSerializer {
         }
 
         return buffer.array();
+    }
+
+    public byte[] serialize(AppendRequest request) {
+        var keyAsByte = request.key().getBytes(StandardCharsets.UTF_8);
+        var lengthOfEntries = 0;
+        for (var entry: request.entries()) {
+            lengthOfEntries += 4 + entry.length;
+        }
+        var length = 4 + 1 + 4 + keyAsByte.length + 1 + 4 + lengthOfEntries;
+        var buffer = ByteBuffer.allocate(length);
+        buffer.putInt(length);
+        buffer.put(APPEND_REQUEST);
+        buffer.putInt(keyAsByte.length);
+        buffer.put(keyAsByte);
+        buffer.put(toByte(request.ackMode()));
+        buffer.putInt(request.entries().length);
+        for (var entry: request.entries()) {
+            buffer.putInt(entry.length);
+            buffer.put(entry);
+        }
+        return buffer.array();
+    }
+
+    public byte[] serialize(AppendResponse response) {
+        Map<Integer, Boolean> peersAck = response.peersAck() == null ? emptyMap() : response.peersAck();
+        var peersAckLength = peersAck.size() * (4 + 1);
+        var length = 4 + 1 + 1 + 4 + peersAckLength;
+        var buffer = ByteBuffer.allocate(length);
+        buffer.putInt(length);
+        buffer.put(APPEND_RESPONSE);
+        buffer.put(response.success() ? (byte) 1 : (byte) 0);
+        buffer.putInt(peersAck.size());
+        for (var entry: peersAck.entrySet()) {
+            buffer.putInt(entry.getKey());
+            buffer.put(entry.getValue() ? (byte) 1 : (byte) 0);
+        }
+        return buffer.array();
+    }
+
+    private byte toByte(AckMode ackMode) {
+        return switch (ackMode) {
+            case NONE -> (byte) 0x00;
+            case LEADER -> (byte) 0x01;
+            case ALL -> (byte) 0x02;
+        };
     }
 }

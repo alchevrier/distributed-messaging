@@ -8,8 +8,11 @@ import io.alchevrier.message.Message
 import io.alchevrier.message.broker.ProduceRequest
 import io.alchevrier.message.broker.ProduceResponse
 import io.alchevrier.message.Topic
+import io.alchevrier.message.raft.AckMode
 import io.alchevrier.message.raft.AppendEntriesRequest
 import io.alchevrier.message.raft.AppendEntriesResponse
+import io.alchevrier.message.raft.AppendRequest
+import io.alchevrier.message.raft.AppendResponse
 import io.alchevrier.message.raft.RequestVoteRequest
 import io.alchevrier.message.raft.RequestVoteResponse
 import spock.lang.Specification
@@ -271,5 +274,48 @@ class ByteBufferSerializerTest extends Specification {
             )
         then: "should match"
             result == response
+    }
+
+    def "given a append request with multiple entries then should serialize-deserialize as expected"(AckMode ackMode) {
+        given: "an append request"
+            def request = new AppendRequest("HelloWorld", new byte[][] { "Hello".getBytes(), "World".getBytes() }, ackMode)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(request)
+            def result = anotherObjectUnderTest.deserializeAppendRequest(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            result.key() == request.key()
+            result.ackMode() == request.ackMode()
+            result.entries().length == request.entries().length
+            for (var i = 0; i < result.entries().length; i++) {
+                new String(result.entries()[i]) == new String(request.entries()[i])
+            }
+        where: ackMode << [AckMode.NONE, AckMode.LEADER, AckMode.ALL]
+    }
+
+    def "given an append response (LEADER) then should serialize-deserialize as expected"(boolean success) {
+        given: "a non-successful append response (LEADER)"
+            def response = new AppendResponse(success, null)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(response)
+            def result = anotherObjectUnderTest.deserializeAppendResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            response == result
+        where: success << [true, false]
+    }
+
+    def "given an append response (ALL) then should serialize-deserialize as expected"() {
+        given: "a non-successful append response (LEADER)"
+            def response = new AppendResponse(true, Map.of(2, false, 3, true, 4, false))
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(response)
+            def result = anotherObjectUnderTest.deserializeAppendResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            response == result
     }
 }
