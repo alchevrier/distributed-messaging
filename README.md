@@ -1,20 +1,42 @@
 # distributed-messaging
 
-A Kafka-like distributed messaging system built from scratch to learn core concepts of distributed systems, message queues, and modern Java concurrency.
+A from-scratch implementation of a distributed messaging system — append-only
+log storage, binary TCP wire protocol, MurmurHash3 partitioning, and Raft
+consensus for replication. Built to understand the implementation-level
+decisions that production systems make at each layer, and where the tradeoffs
+actually live.
 
-## Overview
+## What's implemented
 
-This project implements a distributed messaging platform similar to Apache Kafka, focusing on learning fundamental concepts:
-- Log-structured storage
-- Producer/Consumer patterns
-- Partitioning and replication (future phases)
-- Modern Java features (Java 25, Virtual Threads)
+**Storage layer** — Append-only log with NIO `FileChannel`, segment-based
+layout, index files for O(log n) offset lookup, and crash recovery on startup.
 
-## Architecture
+**Wire protocol** — Custom binary TCP protocol over Java NIO (non-blocking
+I/O). Intentional choice over REST: frame-level control, no HTTP overhead,
+explicit serialisation/deserialisation boundary.
 
-All architectural decisions are documented using Architecture Decision Records (ADRs). See the [docs/adr](docs/adr/) directory for detailed rationale.
+**Partitioning** — MurmurHash3 on message key, least-used partition assignment.
+Partition metadata managed by broker.
 
-### Key Decisions
+**Concurrency model** — `ReentrantReadWriteLock` on the log (read-heavy: N
+concurrent consumers hold read lock simultaneously; append acquires write lock
+exclusively). `AtomicLongArray` for partition offsets — lock-free on the hot
+path via CAS, justified by single-variable write pattern.
+
+**Raft consensus** — Leader election (happy path, split vote, stale leader
+rejection) and log replication (`AppendEntries`, conflict resolution, commit
+index advancement via majority check). Zero-allocation `LogScanFunction`
+`@FunctionalInterface` with primitive `long` index to avoid boxing on the
+replication scan path.
+
+**Virtual Threads** — Used for broker I/O handling. Justified by I/O-bound
+workload profile: high concurrency, low CPU intensity per connection.
+
+## Architecture decisions
+
+All non-trivial decisions are documented as ADRs in [`docs/adr`](docs/adr).
+Each ADR captures the options considered, the tradeoff made, and the load
+profile that drove the decision.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
@@ -30,116 +52,64 @@ All architectural decisions are documented using Architecture Decision Records (
 | [ADR-0010](docs/adr/0010-phase-2-project-structure.md) | Phase 2 Project Structure | Accepted |
 | [ADR-0011](docs/adr/0011-phase-3-project-structure.md) | Phase 3 Project Structure | Accepted |
 
-## Project Structure
+## Project structure
 
 ```
 distributed-messaging/
-├── message/              # Common DTOs (Topic, Message, ProduceRequest)
-├── log-storage-engine/   # Core storage layer (LogSegment, Log, LogManager)
-├── broker/               # REST/TCP API broker (Spring Boot and tcp-server)
-├── consumer/             # Consumer client library (Spring HTTP Interface and tcp-client)
-├── producer/             # Producer client library (Spring HTTP Interface and tcp-client)
-├── tcp-client/           # Client connecting via TCP to a server and forward/receive
-├── tcp-server/           # Server using NIO Java API to listen to TCP requests and handles them
-├── demo-app/             # End-to-end demo application
-└── docs/                 # Documentation & ADRs
+├── log-storage-engine/   # Append-only log, NIO FileChannel, index, segments
+├── broker/               # Broker core — partition management, TCP handler
+├── raft/                 # Raft consensus — election, log replication
+├── cluster-raft/         # Raft integration with broker
+├── tcp-server/           # NIO TCP server — non-blocking accept/read/write
+├── tcp-client/           # TCP client — frame encoding/decoding
+├── producer/             # Producer client library
+├── consumer/             # Consumer client library
+├── message/              # Wire types — Topic, Message, ProduceRequest
+├── demo-app/             # End-to-end demo
+└── docs/adr/             # Architecture Decision Records
 ```
 
-See [ADR-0008](docs/adr/0008-phase-1-project-structure.md) for detailed architecture diagram.
+## Phase status
 
-## Current Phase: Phase 1 - Foundation ✅
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 1 | Append-only log, REST API, single broker | ✅ Done |
+| 2 | Binary TCP protocol, NIO, serialisation | ✅ Done |
+| 3 | Partitioning, MurmurHash3, multi-partition broker | ✅ Done |
+| 4 | Raft consensus — leader election + log replication | 🚧 In progress |
+| 5 | Off-heap storage, zero-copy read path, JMH benchmarks | 📅 Scheduled |
 
-**Goals:**
-- Single broker, single partition
-- Basic produce/consume functionality
-- File-based append-only log storage
-- REST API
-- Own binary protocol (TCP, serializer/deserializer)
+**Phase 5 target:** Off-heap `MemorySegment` slab allocator, 16-byte packed
+log entries, `FileChannel.transferTo()` zero-copy reads, JMH benchmark suite
+on bare-metal Linux. Goal: measure actual latency cost of each architectural
+layer under load.
 
-**What's implemented:**
-- ✅ Log storage engine with NIO (LogSegment, Log, LogManager)
-- ✅ TCP Server/Client with NIO 
-- ✅ REST API broker with Spring Boot
-- ✅ Producer client library (declarative HTTP interface)
-- ✅ Consumer client library (declarative HTTP interface)
-- ✅ Demo application with end-to-end flow
-- ✅ Graceful shutdown and crash recovery
+## Build and run
 
-## Tech Stack
-
-- **Language**: Java 25 (Virtual Threads)
-- **Build Tool**: Gradle (multi-module)
-- **Framework**:(migrating to binary protocol in Phase 2)
-- **HTTP Clients**: Spring HTTP Interface (@GetExchange/@PostExchange)
-- **Storage**: NIO FileChannel, append-only logs with index files
-- **Testing**: Spock (Groovy) for unit tests, MockMvc for integration testsappend-only logs
-- **Testing**: JUnit 5 + AssertJ
-
-## Getting Started
-
-### Prerequisites
-- Java 25 or higher
-- Gradle 8+
-
-### Building
+**Prerequisites:** Java 25+, Gradle 8+
 
 ```bash
 # Build all modules
 ./gradlew build
 
-# Build specific module
-./gradlew :log-storage-engine:build
-
 # Run tests
 ./gradlew test
-```
 
-### Running
-**Start the broker:**
-```bash
+# Start broker
 ./gradlew :broker:bootRun
-```
 
-The broker will start on `http://localhost:8080` with log storage in `./data/logs/`
-
-**Run the demo application:**
-```bash
-# In another terminal
+# Run demo
 ./gradlew :demo-app:bootRun
 ```
 
-The demo app exposes endpoints on `http://localhost:8081` and will use a default topic 'Hello', offset 0 and batch size 100:
-- `POST /produce` - Produce messages to the broker (defaulted to 'Hi + LocalDateTime.now()')
-- `GET /consume?topic=<name>&offset=<num>&batchSize=<size>` - Consume messages
+## Tech stack
 
-**Example usage:**
-```bash
-# Produce a message
-curl -X POST http://localhost:8081/produce
-
-# Consume messages (offset 0, batch size 100)
-curl "http://localhost:8081/consume
-
-# Flush logs to disk
-curl -X POST http://localhost:8080/admin/flush
-# Consumer example (TBD)
-```
-
-## Documentation
-
-- [Architecture Decision Records](docs/adr/) - All architectural decisions with rationale
-- [ADR Index](docs/adr/README.md) - Complete list of ADRs
-
-## Learning Goals
-
-This project is built for learning:
-- Distributed systems fundamentals
-- Log-structured storage design
-- Modern Java concurrency (Virtual Threads)
-- Protocol design (REST → Binary migration)
-- Multi-module project architecture
-- Test-driven development
+- **Language:** Java 25
+- **Build:** Gradle (multi-module)
+- **I/O:** Java NIO — `FileChannel`, `ByteBuffer`, non-blocking TCP
+- **Testing:** JUnit 5 + AssertJ, Spock (Groovy) for storage layer
+- **Consensus:** Raft (hand-rolled — no external library)
 
 ## License
 
-MIT License - See LICENSE file for details
+MIT License — see [LICENSE](LICENSE) for details.
