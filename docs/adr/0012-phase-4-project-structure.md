@@ -265,9 +265,11 @@ Producer/Consumer
 - **Unified Log**: To get the state of the system we only need to recover the log as it was persisted. We don't need to recover an external system persisting the metadata and the log as it was designed in Kafka. 
 - **Fault-tolerance**: We have replicated partition with checks to figure out at runtime who is the leader of which partition. This allows to rebalance in case of a crash of a RaftNode.
 - **Broker simplicity traded for producer complexity**: The broker is kept dumb — it only checks partition leadership. The complexity of routing moves to the producer which now handles partitioning, metadata discovery and direct leader routing.
+- **Thread Safety**: RaftNode is meant to be thread-safe in this architecture since RaftNode is a state machine and is accessed by any virtual threads per requests incoming using a coarse-grained lock will ensure correctness as per JMM (ReentrantLock). 
 
 ### Negative
 - **High implementation complexity**: Raft is notoriously difficult to implement correctly. Split votes, log divergence, network partitions during election — each scenario requires careful handling. This implementation is not production-grade and should not be treated as such.
 - **Log Grows Unboundly**: We don't have snapshotting nor log cleaning and therefore have to keep ALL log records. This could be fixed by a possible Phase 5.
 - **Catching from very far in the log is costly**: Because the log may grow unboundly, a RaftNode lagging behind by a lot will take significant time to catch-up
 - **Possibly a lot of additional log messages appended**: Join/Leave cluster may be spamed if the network is inconsistent, UpdateISR may be spamed as well. 
+- **Use of ReentrantLock**: ReentrantLock in its internals makes heavy use of volatile in its AbstractQueuedSynchronizer which means flushing the L3 caches per JMM which impacts performances heavily (stalling by ~200 CPU cycles per new request/handling new requests and impacting throughput by having a single-lock in contention for possibly many concurrent clients).
