@@ -89,7 +89,8 @@ public class MessageType {
     public static final byte REQUEST_VOTE_RESPONSE = 0x51;
     public static final byte APPEND_ENTRIES_REQUEST = 0x52;
     public static final byte APPEND_ENTRIES_RESPONSE = 0x53;
-
+    public static final byte APPEND_REQUEST = 0x54;
+    public static final byte APPEND_RESPONSE = 0x55;
 }
 ```
 
@@ -123,6 +124,18 @@ We consider `entries` as an opaque blob as Raft should not be aware of the possi
 ```
 
 `conflictTerm` and `conflictIndex` are only meaningful on failure (`success: 0`). On success, both are set to `-1`. They allow the leader to jump directly to the right `nextIndex` for the follower rather than decrementing one at a time.
+
+##### AppendRequest
+
+```
+[length: 4 bytes][messageType - 0x54][keyLength: 4 bytes][key: N Bytes][ackMode: 1 byte][entriesCount: 4 bytes]([entryLength: 4 bytes][entryData: N bytes])
+```
+
+##### AppendResponse
+
+```
+[length: 4 bytes][messageType - 0x55][success: 1 byte][peersCount: 4 bytes]([peerId: 4 byte][success: 1 byte])
+```
 
 #### Clustering Messages
 

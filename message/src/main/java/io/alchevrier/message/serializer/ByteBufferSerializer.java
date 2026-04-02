@@ -231,13 +231,13 @@ public class ByteBufferSerializer {
     }
 
     public byte[] serialize(AppendResponse response) {
-        Map<Integer, Boolean> peersAck = response.peersAck() == null ? emptyMap() : response.peersAck();
+        Map<Integer, Boolean> peersAck = (response == null || response.peersAck() == null) ? emptyMap() : response.peersAck();
         var peersAckLength = peersAck.size() * (4 + 1);
         var length = 4 + 1 + 1 + 4 + peersAckLength;
         var buffer = ByteBuffer.allocate(length);
         buffer.putInt(length);
         buffer.put(APPEND_RESPONSE);
-        buffer.put(response.success() ? (byte) 1 : (byte) 0);
+        buffer.put((response == null || response.success()) ? (byte) 1 : (byte) 0);
         buffer.putInt(peersAck.size());
         for (var entry: peersAck.entrySet()) {
             buffer.putInt(entry.getKey());

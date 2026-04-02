@@ -294,6 +294,19 @@ class ByteBufferSerializerTest extends Specification {
         where: ackMode << [AckMode.NONE, AckMode.LEADER, AckMode.ALL]
     }
 
+    def "given a NULL append request (ACK = NONE) then should serialize-deserialize as a successful response"() {
+        given: "a null append request"
+            def response = null
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize((AppendResponse) response)
+            def result = anotherObjectUnderTest.deserializeAppendResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should serialize as "
+            result.success()
+            result.peersAck() == null
+    }
+
     def "given an append response (LEADER) then should serialize-deserialize as expected"(boolean success) {
         given: "a non-successful append response (LEADER)"
             def response = new AppendResponse(success, null)

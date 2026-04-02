@@ -9,6 +9,7 @@ import io.alchevrier.raft.election.ScheduledHeartbeatTimerService;
 import io.alchevrier.raft.log.CompositeRaftLog;
 import io.alchevrier.raft.log.FileChannelRaftLogger;
 import io.alchevrier.raft.log.MemoryMappedRaftIndexer;
+import io.alchevrier.raft.transport.RaftBrokerHandler;
 import io.alchevrier.raft.transport.RaftServerHandler;
 import io.alchevrier.raft.transport.RaftTcpClient;
 import io.alchevrier.tcpclient.TcpClient;
@@ -23,9 +24,6 @@ public class ClusterRaftNode {
     public static void main(String... args) throws Exception {
         var props = new Properties();
         props.load(new FileInputStream(args[0]));
-
-        var nodeId = Integer.parseInt(props.getProperty("node.id"));
-        var nodePort = Integer.parseInt(props.getProperty("node.port"));
 
         var peers = props.getProperty("peers").split(",");
         var raftPeers = new ArrayList<RaftPeer>(peers.length);
@@ -42,6 +40,7 @@ public class ClusterRaftNode {
         var serializer = new ByteBufferSerializer();
         var deserializer = new ByteBufferDeserializer();
 
+        var nodeId = Integer.parseInt(props.getProperty("node.id"));
         var raftNode = new RaftNode(
                 nodeId,
                 raftPeers,
@@ -60,7 +59,14 @@ public class ClusterRaftNode {
         var raftClient = new RaftTcpClient(clients, serializer, deserializer, raftNode::handleAppendEntriesResponse);
         raftNode.setRaftClient(raftClient);
         raftNode.start();
+
         var serverHandler = new RaftServerHandler(serializer, deserializer, raftNode);
+        var nodePort = Integer.parseInt(props.getProperty("node.port"));
         new TcpServer(nodePort, serverHandler).start();
+
+        var brokerTimeout = Long.parseLong(props.getProperty("broker.timeout"));
+        var brokerHandler = new RaftBrokerHandler(deserializer, serializer, raftNode, brokerTimeout);
+        var brokerPort = Integer.parseInt(props.getProperty("broker.port"));
+        new TcpServer(brokerPort, brokerHandler).start();
     }
 }
