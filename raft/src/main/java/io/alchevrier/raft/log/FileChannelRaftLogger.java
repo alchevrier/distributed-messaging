@@ -26,11 +26,15 @@ final public class FileChannelRaftLogger implements RaftLogger, AutoCloseable {
                     StandardOpenOption.READ,
                     StandardOpenOption.WRITE
             );
+
+            writeLock = new ReentrantLock();
+
+            if (logChannel.size() == 0) {
+                append(4 + 8 + 8, 0, 0, new byte[0]);
+            }
         } catch (IOException e) {
             throw new RuntimeException("Could not do IO operation while initializing the FileChannelRaftLogger for: " + pathName, e);
         }
-
-        writeLock = new ReentrantLock();
 
         Runtime.getRuntime().addShutdownHook(Thread.ofVirtual().unstarted(this::close));
     }
@@ -89,6 +93,7 @@ final public class FileChannelRaftLogger implements RaftLogger, AutoCloseable {
 
     @Override
     public void deleteFrom(long position) {
+        if (position == 0) throw new RuntimeException("Cannot delete from sentinel entry");
         try {
             logChannel.truncate(position);
         } catch (IOException io) {

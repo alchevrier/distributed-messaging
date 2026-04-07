@@ -18,6 +18,7 @@ public class TcpServer implements AutoCloseable {
     private final ServerHandler serverHandler;
 
     private volatile boolean gracefullyShutdown;
+    private volatile ServerSocketChannel serverSocketChannel;
 
     private final AtomicInteger connCounter = new AtomicInteger(0);
 
@@ -30,6 +31,7 @@ public class TcpServer implements AutoCloseable {
         Thread.ofVirtual().name("tcp-server-" + port).start(() -> {
             try {
                 var serverSockerChannel = ServerSocketChannel.open();
+                serverSocketChannel = serverSockerChannel;
                 serverSockerChannel.socket().bind(new InetSocketAddress(port));
 
                 while (!gracefullyShutdown) {
@@ -84,5 +86,10 @@ public class TcpServer implements AutoCloseable {
 
     public void close() {
         this.gracefullyShutdown = true;
+        try {
+            this.serverSocketChannel.close();
+        } catch (IOException e) {
+            LOGGER.error("Error while closing the server socket channel", e);
+        }
     }
 }

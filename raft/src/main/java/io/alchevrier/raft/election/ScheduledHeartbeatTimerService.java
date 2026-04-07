@@ -19,4 +19,9 @@ public class ScheduledHeartbeatTimerService implements HeartbeatTimerService {
         // For now we are passing RaftNode directly which is not thread safe later on we will have to pass to enqueue and execute it there
         scheduledExecutorService.scheduleAtFixedRate(heartbeatFn, timeout, timeout, TimeUnit.MILLISECONDS);
     }
+
+    @Override
+    public void stop() {
+        this.scheduledExecutorService.close();
+    }
 }

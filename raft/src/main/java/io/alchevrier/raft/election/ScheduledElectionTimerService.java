@@ -21,10 +21,15 @@ public class ScheduledElectionTimerService implements ElectionTimerService {
 
     public void resetTimer(Runnable electionFn) {
         if (nextElectionHandler != null) {
-            nextElectionHandler.cancel(true);
+            nextElectionHandler.cancel(false);
         }
         var random = new Random();
         var timeout = random.nextLong(timeoutLowerBound, timeoutUppedBound);
         nextElectionHandler = scheduledExecutorService.schedule(electionFn, timeout, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void stop() {
+        this.scheduledExecutorService.close();
     }
 }

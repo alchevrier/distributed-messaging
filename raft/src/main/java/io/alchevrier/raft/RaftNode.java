@@ -224,7 +224,7 @@ public class RaftNode {
                 leaderState.setMatchIndex(fromNodeId, sentCommitIndex);
                 leaderState.setNextIndex(fromNodeId, sentCommitIndex + 1);
                 tryAdvanceCommitIndex();
-            } else {
+            } else if (response.conflictTerm() != null && response.conflictTerm() != -1) {
                 leaderState.setNextIndex(fromNodeId, findNextConflictIdx(log.getLastIndex(), response.conflictTerm(), response.conflictIndex()));
             }
         } finally {
@@ -327,7 +327,6 @@ public class RaftNode {
     }
 
     private long findNextConflictIdx(long lastIndex, Long conflictTerm, Long conflictIndex) {
-        if (conflictTerm == null) return conflictIndex;
         var lastEntryIndex = this.log.scanFirst(
                 lastIndex,
                 1,

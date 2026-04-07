@@ -193,7 +193,7 @@ public class ByteBufferSerializer {
     }
 
     public byte[] serialize(AppendEntriesResponse response) {
-        var length = 4 + 1 + 1 + 8 + 8 + 8;
+        var length = response.success() ? 4 + 1 + 1 + 8 : 4 + 1 + 1 + 8 + 8 + 8;
         var buffer = ByteBuffer.allocate(length);
         buffer.putInt(length);
         buffer.put(APPEND_ENTRIES_RESPONSE);
@@ -202,8 +202,8 @@ public class ByteBufferSerializer {
         buffer.putLong(response.term());
 
         if (!response.success()) {
-            buffer.putLong(response.conflictTerm());
-            buffer.putLong(response.conflictIndex());
+            buffer.putLong(response.conflictTerm() == null ? -1 : response.conflictTerm());
+            buffer.putLong(response.conflictIndex() == null ? -1 : response.conflictIndex());
         }
 
         return buffer.array();

@@ -409,6 +409,23 @@ class RaftNodeTest extends Specification {
             objectUnderTest.leaderState.getMatchIndex(2) == 0
     }
 
+    def "handleAppendEntriesResponse - LEADER node receiving failed append entries from follower with sentinel conflictTerm"() {
+        given: "3 nodes in cluster ours being a follower"
+            def firstPeer = new RaftPeer(2, "localhost", 9092)
+            def secondPeer = new RaftPeer(3, "localhost", 9093)
+            def objectUnderTest = new RaftNode(1, List.of(firstPeer, secondPeer), log, raftClient, electionTimer, heartbeatTimer)
+
+            def expectedRequestForVote = new RequestVoteRequest(1, 1, 0, 0)
+            raftClient.requestVote(firstPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            raftClient.requestVote(secondPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
+            objectUnderTest.startElection()
+        when: "receiving a append entries response with lower term"
+            objectUnderTest.handleAppendEntriesResponse(new AppendEntriesResponse(false, 0, -1, -1), 2)
+        then: "should only have updated the nextIndex with the conflictIndex"
+            objectUnderTest.leaderState.getNextIndex(2) == 1
+            objectUnderTest.leaderState.getMatchIndex(2) == 0
+    }
+
     def "handleAppendEntriesResponse - LEADER node receiving failed append entries from follower with conflictTerm "() {
         given: "3 nodes in cluster ours being a follower"
             def firstPeer = new RaftPeer(2, "localhost", 9092)

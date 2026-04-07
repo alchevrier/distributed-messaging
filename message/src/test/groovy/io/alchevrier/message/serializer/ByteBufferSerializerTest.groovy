@@ -264,6 +264,21 @@ class ByteBufferSerializerTest extends Specification {
             result == response
     }
 
+    def "given a non-successful append entries response without conflictTerm and conflictIndex then should serialize-deserialize as expected"() {
+        given: "a non-successful append entries response without conflictTerm and conflictIndex"
+            def response = new AppendEntriesResponse(false, 1, null, null)
+        when: "serializing-deserializing"
+            def toBytes = objectUnderTest.serialize(response)
+            def result = anotherObjectUnderTest.deserializeAppendEntriesResponse(
+                    Arrays.copyOfRange(toBytes, 4, toBytes.length)
+            )
+        then: "should match"
+            !result.success()
+            result.term() == 1
+            result.conflictIndex() == -1
+            result.conflictTerm() == -1
+    }
+
     def "given a non-successful append entries response then should serialize-deserialize as expected"() {
         given: "a non-successful append entries response"
             def response = new AppendEntriesResponse(false, 1, 2, 10)

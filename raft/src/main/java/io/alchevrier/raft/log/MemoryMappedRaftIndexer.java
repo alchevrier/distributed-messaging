@@ -32,7 +32,7 @@ final public class MemoryMappedRaftIndexer implements RaftIndexer, AutoCloseable
             buffer = indexChannel.map(FileChannel.MapMode.READ_WRITE, 0, size);
 
             if (writePosition == 0) {
-                append(0, -1);
+                append(0, 0);
                 writePosition = 16;
             }
         } catch (IOException e) {
