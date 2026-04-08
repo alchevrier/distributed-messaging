@@ -32,10 +32,10 @@ public class ClusterRaftNode {
     }
 
     public void shutdown() {
-        electionTimerService.stop();
-        heartbeatTimerService.stop();
         raftServer.close();
         brokerServer.close();
+        electionTimerService.stop();
+        heartbeatTimerService.stop();
     }
 
     public RaftNode getRaftNode() {

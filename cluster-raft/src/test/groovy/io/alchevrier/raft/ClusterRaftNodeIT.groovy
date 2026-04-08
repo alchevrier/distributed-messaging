@@ -60,16 +60,28 @@ class ClusterRaftNodeIT extends Specification {
             nodes.forEach {  response.peersAck().get(findNodeId(it)) }
     }
 
+    def "append - appending to a leader with ACK=NONE should be be successful with no peers information"() {
+        when: "append request on the leader with ACK=NONE"
+            def leader = findLeader()
+            def response = leader.append(new AppendRequest("first", new byte[][] { "hello".getBytes(), "world".getBytes() }, AckMode.NONE))
+        then: "everyone should have commited the entries"
+            response.success()
+            response.peersAck() == null
+    }
+
     ClusterRaftNodeTestHarness findLeader() {
         testHarness.start()
         firstFallbackTestHarness.start()
         secondFallbackTestHarness.start()
 
         def nodes = [testHarness, firstFallbackTestHarness, secondFallbackTestHarness]
+        def leaderRef = [null]
         await().atMost(2000, TimeUnit.MILLISECONDS).until {
-            nodes.count { it.raftNode.state == RaftState.LEADER } == 1
+            def found = nodes.find { it.raftNode.state == RaftState.LEADER }
+            leaderRef[0] = found
+            found != null
         }
-        return nodes.find {it.raftNode.state == RaftState.LEADER }
+        return leaderRef[0]
     }
 
     int findNodeId(ClusterRaftNodeTestHarness toBeTested) {

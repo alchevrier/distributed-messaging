@@ -6,8 +6,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TcpServer implements AutoCloseable {
@@ -19,8 +22,12 @@ public class TcpServer implements AutoCloseable {
 
     private volatile boolean gracefullyShutdown;
     private volatile ServerSocketChannel serverSocketChannel;
+    private volatile Thread serverThread;
+    private final CopyOnWriteArrayList<Thread> connectionThreads = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<SocketChannel> openConnections = new CopyOnWriteArrayList<>();
 
     private final AtomicInteger connCounter = new AtomicInteger(0);
+    private final CountDownLatch serverReady = new CountDownLatch(1);
 
     public TcpServer(int port, ServerHandler serverHandler) {
         this.port = port;
@@ -28,15 +35,17 @@ public class TcpServer implements AutoCloseable {
     }
 
     public void start() {
-        Thread.ofVirtual().name("tcp-server-" + port).start(() -> {
+        serverThread = Thread.ofVirtual().name("tcp-server-" + port).start(() -> {
             try {
                 var serverSockerChannel = ServerSocketChannel.open();
                 serverSocketChannel = serverSockerChannel;
                 serverSockerChannel.socket().bind(new InetSocketAddress(port));
+                serverReady.countDown();
 
                 while (!gracefullyShutdown) {
                     var socketChannel = serverSockerChannel.accept();
-                    Thread.ofVirtual().name("tcp-conn-" + connCounter.getAndIncrement()).start(() -> {
+                    openConnections.add(socketChannel);
+                    var connThread = Thread.ofVirtual().name("tcp-conn-" + connCounter.getAndIncrement()).start(() -> {
                         try (socketChannel) {
                             while (!gracefullyShutdown) {
                                 var messageLength = getMessageLength(socketChannel);
@@ -47,8 +56,11 @@ public class TcpServer implements AutoCloseable {
                             LOGGER.info("Client disconnected on port {}", port);
                         }
                     });
+                    connectionThreads.add(connThread);
                 }
                 serverSockerChannel.close();
+            } catch (AsynchronousCloseException e) {
+                if (!gracefullyShutdown) throw new RuntimeException(e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -87,8 +99,18 @@ public class TcpServer implements AutoCloseable {
     public void close() {
         this.gracefullyShutdown = true;
         try {
+            this.serverReady.await();
             this.serverSocketChannel.close();
-        } catch (IOException e) {
+            for (var conn: openConnections) {
+                conn.close();
+            }
+            for (var thread: connectionThreads) {
+                thread.join();
+            }
+            if (serverThread != null) {
+                serverThread.join();
+            }
+        } catch (Exception e) {
             LOGGER.error("Error while closing the server socket channel", e);
         }
     }

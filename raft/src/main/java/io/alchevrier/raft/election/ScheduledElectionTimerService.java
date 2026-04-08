@@ -30,6 +30,11 @@ public class ScheduledElectionTimerService implements ElectionTimerService {
 
     @Override
     public void stop() {
-        this.scheduledExecutorService.close();
+        this.scheduledExecutorService.shutdown();
+        try {
+            this.scheduledExecutorService.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

@@ -1,15 +1,20 @@
 package io.alchevrier.raft.transport;
 
+import io.alchevrier.message.raft.AppendResponse;
 import io.alchevrier.message.serializer.ByteBufferDeserializer;
 import io.alchevrier.message.serializer.ByteBufferSerializer;
 import io.alchevrier.message.serializer.MessageType;
 import io.alchevrier.raft.RaftNode;
 import io.alchevrier.tcpserver.ServerHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 public class RaftBrokerHandler implements ServerHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RaftBrokerHandler.class);
 
     private final ByteBufferDeserializer deserializer;
     private final ByteBufferSerializer serializer;
@@ -44,7 +49,8 @@ public class RaftBrokerHandler implements ServerHandler {
             var response = raftNode.append(request);
             return serializer.serialize(response.get(timeout, TimeUnit.MILLISECONDS));
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            LOGGER.error("handleAppendRequest failed", e);
+            return serializer.serialize(new AppendResponse(false, null));
         }
     }
 }
