@@ -27,10 +27,21 @@ path via CAS, justified by single-variable write pattern.
 rejection) and log replication (`AppendEntries`, conflict resolution, commit
 index advancement via majority check). Zero-allocation `LogScanFunction`
 `@FunctionalInterface` with primitive `long` index to avoid boxing on the
-replication scan path.
+replication scan path. Election timer correctly reset on `AppendEntries`
+receipt (§5.2) and on vote grant only — not on every `RequestVote` to prevent
+timer disruption by non-viable candidates.
 
-**Virtual Threads** — Used for broker I/O handling. Justified by I/O-bound
-workload profile: high concurrency, low CPU intensity per connection.
+**Raft integration tests** — Full 3-node cluster integration tests running
+against real TCP, real timers, and real disk: leader election, re-election
+after leader failure, `ACK=ALL` / `ACK=LEADER` / `ACK=NONE` replication modes,
+and majority-quorum append with one node down. Pending futures drained
+immediately on step-down so clients fail fast rather than waiting for the
+broker timeout.
+
+**Virtual Threads** — Used for broker I/O handling and concurrent heartbeat
+dispatch. Each heartbeat cycle fires one virtual thread per peer so a slow or
+dead peer cannot block heartbeats to the remaining cluster. Justified by
+I/O-bound workload profile: high concurrency, low CPU intensity per connection.
 
 ## Architecture decisions
 
@@ -51,6 +62,7 @@ profile that drove the decision.
 | [ADR-0009](docs/adr/0009-use-binary-wire-protocol.md) | Use Binary Wire Protocol (Phase 2) | Accepted |
 | [ADR-0010](docs/adr/0010-phase-2-project-structure.md) | Phase 2 Project Structure | Accepted |
 | [ADR-0011](docs/adr/0011-phase-3-project-structure.md) | Phase 3 Project Structure | Accepted |
+| [ADR-0012](docs/adr/0012-phase-4-project-structure.md) | Phase 4 Project Structure | Accepted |
 
 ## Project structure
 
@@ -76,7 +88,7 @@ distributed-messaging/
 | 1 | Append-only log, REST API, single broker | ✅ Done |
 | 2 | Binary TCP protocol, NIO, serialisation | ✅ Done |
 | 3 | Partitioning, MurmurHash3, multi-partition broker | ✅ Done |
-| 4 | Raft consensus — leader election + log replication | 🚧 In progress |
+| 4 | Raft consensus — leader election + log replication + integration tests | ✅ Done |
 | 5 | Off-heap storage, zero-copy read path, JMH benchmarks | 📅 Scheduled |
 
 **Phase 5 target:** Off-heap `MemorySegment` slab allocator, 16-byte packed
@@ -86,7 +98,7 @@ layer under load.
 
 ## Build and run
 
-**Prerequisites:** Java 25+, Gradle 8+
+**Prerequisites:** Java 25+, Gradle 9+
 
 ```bash
 # Build all modules
@@ -107,7 +119,7 @@ layer under load.
 - **Language:** Java 25
 - **Build:** Gradle (multi-module)
 - **I/O:** Java NIO — `FileChannel`, `ByteBuffer`, non-blocking TCP
-- **Testing:** JUnit 5 + AssertJ, Spock (Groovy) for storage layer
+- **Testing:** JUnit 5 + AssertJ, Spock (Groovy) + Awaitility for unit and integration tests
 - **Consensus:** Raft (hand-rolled — no external library)
 
 ## License
