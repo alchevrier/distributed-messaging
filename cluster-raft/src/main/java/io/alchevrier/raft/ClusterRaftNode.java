@@ -36,6 +36,7 @@ public class ClusterRaftNode {
         brokerServer.close();
         electionTimerService.stop();
         heartbeatTimerService.stop();
+        raftNode.stop();
     }
 
     public RaftNode getRaftNode() {

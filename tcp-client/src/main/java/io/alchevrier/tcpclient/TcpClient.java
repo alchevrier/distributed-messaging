@@ -4,16 +4,26 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public class TcpClient implements AutoCloseable {
     private final String host;
     private final int port;
+    private final long readTimeout;
     private SocketChannel channel;
 
     public TcpClient(String host, int port) {
         this.host = host;
         this.port = port;
+        this.readTimeout = 1000;
+    }
+
+    public TcpClient(String host, int port, long readTimeout) {
+        this.host = host;
+        this.port = port;
+        this.readTimeout = readTimeout;
     }
 
     public synchronized <Req, Res> Res forwardToServer(Req message, Function<Req, byte[]> serializer, Function<byte[], Res> deserializer) throws IOException {
@@ -21,7 +31,20 @@ public class TcpClient implements AutoCloseable {
             connectToServer();
         }
         forwardToServer(serializer.apply(message));
-        return deserializer.apply(readResponse());
+        try {
+            var rawResponse = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return this.readResponse();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }).get(readTimeout, TimeUnit.MILLISECONDS);
+            return deserializer.apply(rawResponse);
+        } catch (Exception e) {
+            try { channel.close(); } catch (IOException ignored) {}
+            channel = null;
+            throw new IOException("Read Timeout");
+        }
     }
 
     private void forwardToServer(byte[] toForward) throws IOException {

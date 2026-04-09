@@ -75,6 +75,19 @@ public class RaftNode {
         this.electionTimerService.resetTimer(this::startElection);
     }
 
+    public void stop() {
+        this.lock.lock();
+        try {
+            state = RaftState.FOLLOWER;
+            leaderState = null;
+            pendingAppends.values().forEach(f -> f.complete(new AppendResponse(false, null)));
+            pendingAppends.clear();
+            inflightKeys.clear();
+        } finally {
+            this.lock.unlock();
+        }
+    }
+
     public RequestVoteResponse handleRequestVote(RequestVoteRequest request) {
         this.lock.lock();
         try {
@@ -89,6 +102,7 @@ public class RaftNode {
 
             if (voteGranted) {
                 votedFor = request.candidateId();
+                electionTimerService.resetTimer(this::startElection);
             }
 
             return new RequestVoteResponse(voteGranted, currentTerm);
@@ -174,12 +188,22 @@ public class RaftNode {
     }
 
     public void sendHeartbeats() {
+        List<Map.Entry<RaftPeer, AppendEntriesRequest>> requests;
         this.lock.lock();
         try {
-            peers.forEach(this::sendAppendEntriesUnlocked);
+            // build all requests + update lastSentIndex under lock
+            requests = peers.stream().map(peer -> {
+                var request = buildAppendEntriesRequest(peer);
+                leaderState.setLastSentIndex(peer.nodeId(), log.getLastIndex());
+                return Map.entry(peer, request);
+            }).toList();
         } finally {
             this.lock.unlock();
         }
+        // fire concurrently, lock-free
+        requests.forEach(req ->
+            Thread.ofVirtual().start(() -> raftClient.appendEntries(req.getKey(), req.getValue()))
+        );
     }
 
     public void sendAppendEntries(RaftPeer peer) {
@@ -192,6 +216,11 @@ public class RaftNode {
     }
 
     private void sendAppendEntriesUnlocked(RaftPeer peer) {
+        leaderState.setLastSentIndex(peer.nodeId(), log.getLastIndex());
+        raftClient.appendEntries(peer, buildAppendEntriesRequest(peer));
+    }
+
+    private AppendEntriesRequest buildAppendEntriesRequest(RaftPeer peer) {
         var nextIndexForPeer = leaderState.getNextIndex(peer.nodeId());
         var prevLogIndexForPeer = nextIndexForPeer - 1;
         var prevLogTerm = log.getTermAt(prevLogIndexForPeer);
@@ -202,9 +231,7 @@ public class RaftNode {
             entries[Math.toIntExact(i - nextIndexForPeer)] = log.get(i).data();
         }
 
-        var appendEntries = new AppendEntriesRequest(currentTerm, nodeId, commitIndex, prevLogIndexForPeer, prevLogTerm, entries);
-        leaderState.setLastSentIndex(peer.nodeId(), log.getLastIndex());
-        raftClient.appendEntries(peer, appendEntries);
+        return new AppendEntriesRequest(currentTerm, nodeId, commitIndex, prevLogIndexForPeer, prevLogTerm, entries);
     }
 
     public void handleAppendEntriesResponse(AppendEntriesResponse response, int fromNodeId) {
@@ -240,6 +267,7 @@ public class RaftNode {
             }
 
             setAsFollower(request.term());
+            electionTimerService.resetTimer(this::startElection);
 
             if (log.getLastIndex() < request.prevLogIndex()) {
                 return new AppendEntriesResponse(false, currentTerm, null, log.getLastIndex() + 1);
@@ -365,6 +393,9 @@ public class RaftNode {
         votedFor = null;
         leaderState = null;
         state = RaftState.FOLLOWER;
+        pendingAppends.values().forEach(f -> f.complete(new AppendResponse(false, null)));
+        pendingAppends.clear();
+        inflightKeys.clear();
     }
 
     RaftState getState() {

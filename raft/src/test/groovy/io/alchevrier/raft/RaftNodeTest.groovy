@@ -11,6 +11,8 @@ import io.alchevrier.raft.election.HeartbeatTimerService
 import io.alchevrier.raft.log.InMemoryRaftLog
 import spock.lang.Specification
 
+import static org.awaitility.Awaitility.await
+
 class RaftNodeTest extends Specification {
 
     def raftClient = Mock(RaftClient)
@@ -297,26 +299,27 @@ class RaftNodeTest extends Specification {
             raftClient.requestVote(secondPeer, expectedRequestForVote) >> new RequestVoteResponse(true, 0)
             objectUnderTest.startElection()
 
-            AppendEntriesRequest firstPeerCapturedRequest
-            AppendEntriesRequest secondPeerCapturedRequest
+            AppendEntriesRequest[] firstPeerCapturedRequest = [null]
+            AppendEntriesRequest[] secondPeerCapturedRequest = [null]
+            raftClient.appendEntries(firstPeer, _) >> { peer, request -> firstPeerCapturedRequest[0] = request }
+            raftClient.appendEntries(secondPeer, _) >> { peer, request -> secondPeerCapturedRequest[0] = request }
         when: "sending append entries"
             objectUnderTest.sendHeartbeats()
         then: "should send append entries with missing entries"
-            1 * raftClient.appendEntries(firstPeer, _) >> { peer, request -> firstPeerCapturedRequest = request }
-            1 * raftClient.appendEntries(secondPeer, _) >> { peer, request -> secondPeerCapturedRequest = request }
-            firstPeerCapturedRequest.term() == 1
-            firstPeerCapturedRequest.leaderId() == 1
-            firstPeerCapturedRequest.leaderCommitIndex() == 0
-            firstPeerCapturedRequest.prevLogIndex() == 0
-            firstPeerCapturedRequest.prevLogTerm() == 0
-            firstPeerCapturedRequest.entries().length == 0
+            await().until { firstPeerCapturedRequest[0] != null && secondPeerCapturedRequest[0] != null }
+            firstPeerCapturedRequest[0].term() == 1
+            firstPeerCapturedRequest[0].leaderId() == 1
+            firstPeerCapturedRequest[0].leaderCommitIndex() == 0
+            firstPeerCapturedRequest[0].prevLogIndex() == 0
+            firstPeerCapturedRequest[0].prevLogTerm() == 0
+            firstPeerCapturedRequest[0].entries().length == 0
 
-            secondPeerCapturedRequest.term() == 1
-            secondPeerCapturedRequest.leaderId() == 1
-            secondPeerCapturedRequest.leaderCommitIndex() == 0
-            secondPeerCapturedRequest.prevLogIndex() == 0
-            secondPeerCapturedRequest.prevLogTerm() == 0
-            secondPeerCapturedRequest.entries().length == 0
+            secondPeerCapturedRequest[0].term() == 1
+            secondPeerCapturedRequest[0].leaderId() == 1
+            secondPeerCapturedRequest[0].leaderCommitIndex() == 0
+            secondPeerCapturedRequest[0].prevLogIndex() == 0
+            secondPeerCapturedRequest[0].prevLogTerm() == 0
+            secondPeerCapturedRequest[0].entries().length == 0
     }
 
     def "handleAppendEntriesResponse - any node receiving a appendEntries response with a term higher than the node's current term is actually a FOLLOWER"() {

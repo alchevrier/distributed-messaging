@@ -50,6 +50,15 @@ class ClusterRaftNodeIT extends Specification {
             }
     }
 
+    def "startElection - a leader should be re-elected if the current leader is down"() {
+        when: "starting an election and shutting down the leader and wait re-election"
+            def leader = findLeader()
+            leader.shutdown()
+            def newLeader = captureCurrentLeader()
+        then: "everyone should have commited the entries"
+            findNodeId(leader) != findNodeId(newLeader)
+    }
+
     def "append - appending to a leader with ACK=ALL should be be successful to all peers"() {
         when: "append request on the leader with ACK=ALL"
             def leader = findLeader()
@@ -58,6 +67,23 @@ class ClusterRaftNodeIT extends Specification {
             response.success()
             def nodes = [testHarness, firstFallbackTestHarness, secondFallbackTestHarness] - leader
             nodes.forEach {  response.peersAck().get(findNodeId(it)) }
+    }
+
+    def "append - appending to a leader with ACK=ALL while one node is done should be be successful to majority of peers"() {
+        when: "append request on the leader with ACK=ALL"
+            def leader = findLeader()
+            def downNode = ([testHarness, firstFallbackTestHarness, secondFallbackTestHarness] - leader)[0]
+            downNode.shutdown()
+            // by the time we shutdown the downNode, the leader election has been re-triggered again and the leader changed
+            // basically the issue is that the downNode is probably ahead of the hierarchy and called first leading to the second FOLLOWER
+            // thinking the leader is gone as we the first call to appendEntries to the downNode is timing-out
+            leader = captureCurrentLeader()
+            def response = leader.append(new AppendRequest("first", new byte[][] { "hello".getBytes(), "world".getBytes() }, AckMode.ALL))
+        then: "everyone should have commited the entries"
+            response.success()
+            def remainingNode = [testHarness, firstFallbackTestHarness, secondFallbackTestHarness] - leader - downNode
+            remainingNode.forEach {  response.peersAck().get(findNodeId(it)) }
+            !response.peersAck().get(findNodeId(downNode))
     }
 
     def "append - appending to a leader with ACK=NONE should be be successful with no peers information"() {
@@ -69,14 +95,27 @@ class ClusterRaftNodeIT extends Specification {
             response.peersAck() == null
     }
 
+    def "append - appending to a leader with ACK=LEADER should be be successful with no peers information"() {
+        when: "append request on the leader with ACK=LEADER"
+            def leader = findLeader()
+            def response = leader.append(new AppendRequest("first", new byte[][] { "hello".getBytes(), "world".getBytes() }, AckMode.LEADER))
+        then: "everyone should have commited the entries"
+            response.success()
+            response.peersAck() == null
+    }
+
     ClusterRaftNodeTestHarness findLeader() {
         testHarness.start()
         firstFallbackTestHarness.start()
         secondFallbackTestHarness.start()
 
+        return captureCurrentLeader()
+    }
+
+    ClusterRaftNodeTestHarness captureCurrentLeader() {
         def nodes = [testHarness, firstFallbackTestHarness, secondFallbackTestHarness]
         def leaderRef = [null]
-        await().atMost(2000, TimeUnit.MILLISECONDS).until {
+        await().atMost(3000, TimeUnit.MILLISECONDS).until {
             def found = nodes.find { it.raftNode.state == RaftState.LEADER }
             leaderRef[0] = found
             found != null

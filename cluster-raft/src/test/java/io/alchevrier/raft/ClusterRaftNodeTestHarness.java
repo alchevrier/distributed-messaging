@@ -16,7 +16,7 @@ class ClusterRaftNodeTestHarness {
 
     public ClusterRaftNodeTestHarness(int brokerPort, ClusterRaftNode clusterRaftNode) {
         this.clusterRaftNode = clusterRaftNode;
-        this.brokerClient = new TcpClient("localhost", brokerPort);
+        this.brokerClient = new TcpClient("localhost", brokerPort, 5000);
 
         this.serializer = new ByteBufferSerializer();
         this.deserializer = new ByteBufferDeserializer();
