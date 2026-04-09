@@ -29,7 +29,9 @@ index advancement via majority check). Zero-allocation `LogScanFunction`
 `@FunctionalInterface` with primitive `long` index to avoid boxing on the
 replication scan path. Election timer correctly reset on `AppendEntries`
 receipt (§5.2) and on vote grant only — not on every `RequestVote` to prevent
-timer disruption by non-viable candidates.
+timer disruption by non-viable candidates. `CompositeRaftLog` separates indexing from storage:
+`MemoryMappedRaftIndexer` for O(1) offset lookup via mmap, `FileChannelRaftLogger`
+for sequential append writes — persistent across restarts.
 
 **Raft integration tests** — Full 3-node cluster integration tests running
 against real TCP, real timers, and real disk: leader election, re-election
