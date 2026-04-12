@@ -51,20 +51,21 @@ All non-trivial decisions are documented as ADRs in [`docs/adr`](docs/adr).
 Each ADR captures the options considered, the tradeoff made, and the load
 profile that drove the decision.
 
-| ADR | Decision | Status |
-|-----|----------|--------|
-| [ADR-0001](docs/adr/0001-use-architecture-decision-records.md) | Use Architecture Decision Records | Accepted |
+| ADR                                                                    | Decision | Status |
+|------------------------------------------------------------------------|----------|--------|
+| [ADR-0001](docs/adr/0001-use-architecture-decision-records.md)         | Use Architecture Decision Records | Accepted |
 | [ADR-0002](docs/adr/0002-choose-java-25-as-implementation-language.md) | Java 25 as Implementation Language | Accepted |
-| [ADR-0003](docs/adr/0003-use-append-only-log-storage.md) | Append-Only Log Storage | Accepted |
-| [ADR-0004](docs/adr/0004-use-binary-wire-protocol.md) | Binary Wire Protocol (future) / REST API (Phase 1) | Accepted |
-| [ADR-0005](docs/adr/0005-use-virtual-threads-for-concurrency.md) | Virtual Threads for Concurrency | Accepted |
-| [ADR-0006](docs/adr/0006-phased-implementation-approach.md) | Phased Implementation Approach | Accepted |
-| [ADR-0007](docs/adr/0007-choose-gradle-as-build-tool.md) | Gradle as Build Tool | Accepted |
-| [ADR-0008](docs/adr/0008-phase-1-project-structure.md) | Phase 1 Project Structure | Accepted |
-| [ADR-0009](docs/adr/0009-use-binary-wire-protocol.md) | Use Binary Wire Protocol (Phase 2) | Accepted |
-| [ADR-0010](docs/adr/0010-phase-2-project-structure.md) | Phase 2 Project Structure | Accepted |
-| [ADR-0011](docs/adr/0011-phase-3-project-structure.md) | Phase 3 Project Structure | Accepted |
-| [ADR-0012](docs/adr/0012-phase-4-project-structure.md) | Phase 4 Project Structure | Accepted |
+| [ADR-0003](docs/adr/0003-use-append-only-log-storage.md)               | Append-Only Log Storage | Accepted |
+| [ADR-0004](docs/adr/0004-use-binary-wire-protocol.md)                  | Binary Wire Protocol (future) / REST API (Phase 1) | Accepted |
+| [ADR-0005](docs/adr/0005-use-virtual-threads-for-concurrency.md)       | Virtual Threads for Concurrency | Accepted |
+| [ADR-0006](docs/adr/0006-phased-implementation-approach.md)            | Phased Implementation Approach | Accepted |
+| [ADR-0007](docs/adr/0007-choose-gradle-as-build-tool.md)               | Gradle as Build Tool | Accepted |
+| [ADR-0008](docs/adr/0008-phase-1-project-structure.md)                 | Phase 1 Project Structure | Accepted |
+| [ADR-0009](docs/adr/0009-use-binary-wire-protocol.md)                  | Use Binary Wire Protocol (Phase 2) | Accepted |
+| [ADR-0010](docs/adr/0010-phase-2-project-structure.md)                 | Phase 2 Project Structure | Accepted |
+| [ADR-0011](docs/adr/0011-phase-3-project-structure.md)                 | Phase 3 Project Structure | Accepted |
+| [ADR-0012](docs/adr/0012-phase-4-project-structure.md)                 | Phase 4 Project Structure | Accepted |
+| [ADR-0013](docs/adr/0013-phase-5-production-readiness.md)                 | ADR-0013: Phase 5 Production Readiness | Accepted |
 
 ## Project structure
 
@@ -91,7 +92,7 @@ distributed-messaging/
 | 2 | Binary TCP protocol, NIO, serialisation | ✅ Done |
 | 3 | Partitioning, MurmurHash3, multi-partition broker | ✅ Done |
 | 4 | Raft consensus — leader election + log replication + integration tests | ✅ Done |
-| 5 | Off-heap storage, zero-copy read path, JMH benchmarks | 📅 Scheduled |
+| 5 | Off-heap storage, zero-copy read path, JMH benchmarks | � In Progress |
 
 **Phase 5 target:** Off-heap `MemorySegment` slab allocator, 16-byte packed
 log entries, `FileChannel.transferTo()` zero-copy reads, JMH benchmark suite
