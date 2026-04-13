@@ -66,7 +66,7 @@ public class LogImpl implements Log {
 
     private void createNewSegment(long atOffset) {
         String segmentPath = logDirectory + "/" + String.format("%020d", atOffset);
-        segments.put(atOffset, new LogSegmentImpl(segmentPath, atOffset));
+        segments.put(atOffset, new LogSegmentImpl(segmentPath, atOffset, maxSegmentSize));
     }
 
     @Override

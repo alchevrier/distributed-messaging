@@ -19,7 +19,7 @@ class LogSegmentTest extends Specification {
 
     def setup() {
         segmentPath = tempDir.resolve("test-segment").toString()
-        segment = new LogSegmentImpl(segmentPath, 0)
+        segment = new LogSegmentImpl(segmentPath, 0, 400)
     }
 
     def cleanup() {
@@ -97,7 +97,7 @@ class LogSegmentTest extends Specification {
             segment.append(0, "Hello World!".getBytes())
             segment.flush()
             segment.close()
-            segment = new LogSegmentImpl(segmentPath, 1) // starting from the next offset
+            segment = new LogSegmentImpl(segmentPath, 1, 400) // starting from the next offset
             def result = new String(segment.read(0))
 
         then: "log file information should be established as persisted"
@@ -111,7 +111,7 @@ class LogSegmentTest extends Specification {
             segment.append(0, "Hello World!".getBytes())
             segment.flush()
             segment.close()
-            segment = new LogSegmentImpl(segmentPath, 1) // starting from the next offset
+            segment = new LogSegmentImpl(segmentPath, 1, 400) // starting from the next offset
             segment.append(1, "This should be accessible".getBytes())
             def result = new String(segment.read(1))
 
@@ -129,7 +129,7 @@ class LogSegmentTest extends Specification {
             segment.flush()
             segment.close()
 
-            segment = new LogSegmentImpl(segmentPath, 0)
+            segment = new LogSegmentImpl(segmentPath, 0, 400)
 
         then:
             new String(segment.read(0)) == "First"

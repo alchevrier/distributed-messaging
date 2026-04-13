@@ -40,3 +40,7 @@ build
 .vscode/
 
 **/bin
+
+# Local benchmark results (JMH + JFR) - kept locally, not pushed
+benchmarks/results/**
+!benchmarks/results/**/.gitkeep
