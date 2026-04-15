@@ -126,7 +126,7 @@ Root cause: two `FileChannel.read()` syscalls per message (length then data) + s
 
 Fix: single `FileChannel.read()` into the caller-provided buffer — full record (header + payload) in one syscall. Extract length with `getInt()`, skip the 8-byte offset field, remaining bytes are the payload. Zero allocation inside the storage engine. Topic-partition routing keys pre-computed at topic creation to eliminate `String` concatenation on the hot path.
 
-Full methodology, JMH results, and JFR traces in [`benchmarks/results/`](benchmarks/results/).
+Full methodology and architectural decisions in [`docs/adr/0013-phase-5-production-readiness.md`](docs/adr/0013-phase-5-production-readiness.md).
 
 ## Build and run
 
