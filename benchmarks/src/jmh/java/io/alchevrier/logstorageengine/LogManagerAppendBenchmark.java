@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
-public class LogManagerBenchmark {
+public class LogManagerAppendBenchmark {
 
     private LogManager logManager;
     private byte[] priceOrder;

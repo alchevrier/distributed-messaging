@@ -10,9 +10,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class LogSegmentImpl implements LogSegment {
@@ -51,13 +48,13 @@ public class LogSegmentImpl implements LogSegment {
                     StandardOpenOption.WRITE
             );
 
-            writeArena = Arena.ofConfined();
+            writeArena = Arena.ofShared();
             indexSegement = writeArena.allocate(16);
             headerSegment = writeArena.allocate(12);
 
             readArena = Arena.ofShared();
             // 16 bytes is the size of the index record, 12 is the header size which gives us a safe approximation of the memory to allocate off-heap
-            offsetIndexSlab = readArena.allocate(maxSegmentSize * 16 / 12);
+            offsetIndexSlab = readArena.allocate((maxSegmentSize / 12 + 1) * 16);
             entryCount = 0;
         } catch (IOException ex) {
             throw new RuntimeException("Could not do IO operation while initializing the LogSegment for: " + segmentPathName, ex);
@@ -146,27 +143,20 @@ public class LogSegmentImpl implements LogSegment {
     }
 
     @Override
-    public byte[] read(long offset) {
+    public int read(long offset, ByteBuffer dest) {
         try {
             var filePosition = findFilePositionFromSlab(offset);
             if (filePosition == null) {
                 throw new RuntimeException("Asking for an offset not persisted yet");
             }
 
-            // Read length (4 bytes)
-            ByteBuffer lengthBuf = ByteBuffer.allocate(4);
-            logChannel.read(lengthBuf, filePosition);
-            lengthBuf.flip();
-            int length = lengthBuf.getInt();
-
             // Read data (skip offset field: 4 + 8 = 12 bytes)
-            ByteBuffer dataBuf = ByteBuffer.allocate(length);
-            logChannel.read(dataBuf, filePosition + 12);
-            dataBuf.flip();
+            logChannel.read(dest, filePosition);
+            dest.flip();
+            int length = dest.getInt();
+            dest.position(4 + 8);
 
-            byte[] result = new byte[dataBuf.remaining()];
-            dataBuf.get(result);
-            return result;
+            return length;
         } catch (IOException ex) {
             // think about how to handle this
             throw new RuntimeException("Not Implemented yet");

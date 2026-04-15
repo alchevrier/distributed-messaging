@@ -1,6 +1,7 @@
 package io.alchevrier.logstorageengine;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.TreeMap;
@@ -98,14 +99,14 @@ public class LogImpl implements Log {
     }
 
     @Override
-    public byte[] read(long offset) {
+    public int read(long offset, ByteBuffer dest) {
         readLock.lock();
         try {
             var mostAccurateSegment = this.segments.floorEntry(offset);
             if (mostAccurateSegment == null) {
                 throw new RuntimeException("Offset " + offset + " is before first segment");
             }
-            return mostAccurateSegment.getValue().read(offset);
+            return mostAccurateSegment.getValue().read(offset, dest);
         } finally {
             readLock.unlock();
         }

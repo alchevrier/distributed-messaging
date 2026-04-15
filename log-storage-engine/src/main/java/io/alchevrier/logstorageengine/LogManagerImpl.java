@@ -3,6 +3,7 @@ package io.alchevrier.logstorageengine;
 import io.alchevrier.message.Topic;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -15,6 +16,7 @@ public class LogManagerImpl implements LogManager {
     private final int partitionNumber;
     private Map<String, Log> logsPerPartition;
     private Map<Topic, PartitionManager> partitionManagerPerTopics;
+    private Map<Topic, String[]> topicKeys;
 
     public LogManagerImpl(
             String logDirectory,
@@ -39,6 +41,7 @@ public class LogManagerImpl implements LogManager {
     private void loadExistingTopics() {
         logsPerPartition = new ConcurrentHashMap<>();
         partitionManagerPerTopics = new ConcurrentHashMap<>();
+        topicKeys = new ConcurrentHashMap<>();
 
         try (var files = Files.list(Paths.get(logDirectory))) {
             files.filter(Files::isDirectory).forEach(it -> {
@@ -47,9 +50,13 @@ public class LogManagerImpl implements LogManager {
                 logsPerPartition.put(partitionName, log);
 
                 var topicName = partitionName.substring(0, partitionName.lastIndexOf("-"));
+                var topic = new Topic(topicName);
                 var partitionManager = partitionManagerPerTopics.computeIfAbsent(
-                        new Topic(topicName),
-                        _ -> new DefaultPartitionManager(partitionNumber)
+                        topic,
+                        _ -> {
+                            populateTopicKeys(topic);
+                            return new DefaultPartitionManager(partitionNumber);
+                        }
                 );
 
                 var partitionNo = Integer.parseInt(partitionName.substring(partitionName.lastIndexOf("-") + 1));
@@ -64,12 +71,15 @@ public class LogManagerImpl implements LogManager {
     public AppendResponse append(Topic topic, String key, byte[] data) {
         var partitionManager = partitionManagerPerTopics.computeIfAbsent(
                 topic,
-                _ -> new DefaultPartitionManager(partitionNumber)
+                _ -> {
+                    populateTopicKeys(topic);
+                    return new DefaultPartitionManager(partitionNumber);
+                }
         );
 
         var partitionNumber = partitionManager.resolve(key);
         var topicRetrieved = logsPerPartition.computeIfAbsent(
-                topic.name() + "-" + partitionNumber,
+                topicKeys.get(topic)[partitionNumber],
                 it -> new LogImpl(logDirectory + "/" + it, maxSegmentSize, flushInterval)
         );
 
@@ -80,7 +90,7 @@ public class LogManagerImpl implements LogManager {
     }
 
     @Override
-    public byte[] read(Topic topic, int partition, long offset) {
+    public int read(Topic topic, int partition, long offset, ByteBuffer dest) {
         var partitionManager = partitionManagerPerTopics.get(topic);
         if (partitionManager == null) {
             // figure out what to do here CREATE or throw Exception?
@@ -91,7 +101,7 @@ public class LogManagerImpl implements LogManager {
             // figure out what to do here CREATE or throw Exception?
             throw new RuntimeException("Not implemented yet");
         }
-        return topicRetrieved.read(offset);
+        return topicRetrieved.read(offset, dest);
     }
 
     @Override
@@ -102,5 +112,15 @@ public class LogManagerImpl implements LogManager {
     @Override
     public void flush() {
         logsPerPartition.values().forEach(Log::flush);
+    }
+
+    private void populateTopicKeys(Topic topic) {
+        topicKeys.computeIfAbsent(topic, _ -> {
+            var topicKeyPartitions = new String[partitionNumber];
+            for (var i = 0; i < partitionNumber; i++) {
+                topicKeyPartitions[i] = topic.name() + "-" + i;
+            }
+            return topicKeyPartitions;
+        });
     }
 }

@@ -4,6 +4,8 @@ import io.alchevrier.message.Topic
 import spock.lang.Specification
 import spock.lang.TempDir
 
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -32,7 +34,7 @@ class LogManagerTest extends Specification {
 
     def "reading from an empty log should throw an exception"() {
         when: "no existing log"
-            logManager.read(new Topic("testTopic"), 0, 0)
+            logManager.read(new Topic("testTopic"), 0, 0, ByteBuffer.allocate(12 + 1))
         then: "should throw exception"
             thrown RuntimeException
     }
@@ -63,14 +65,20 @@ class LogManagerTest extends Specification {
 
     def "appending to more than one log then should be able to read at any of the log"() {
         given: "appending to more than one log"
-            logManager.append(new Topic("testTopic"), null, "Hello World!".getBytes())
-            logManager.append(new Topic("secondTopic"), null, "Is Different".getBytes())
+            def firstSrc = "Hello World!".getBytes()
+            logManager.append(new Topic("testTopic"), null, firstSrc)
+            def secondSrc = "Is Different".getBytes()
+            logManager.append(new Topic("secondTopic"), null, secondSrc)
         when: "reading any of the offset of the logs"
-            def secondTopicResult = logManager.read(new Topic("secondTopic"), 0, 0)
-            def firstTopicResult = logManager.read(new Topic("testTopic"), 0, 0)
+            def secondDest = ByteBuffer.allocate(12 + secondSrc.length)
+            def secondTopicSize = logManager.read(new Topic("secondTopic"), 0, 0, secondDest)
+            def firstDest = ByteBuffer.allocate(12 + firstSrc.length)
+            def firstTopicSize = logManager.read(new Topic("testTopic"), 0, 0, firstDest)
         then: "should have the corresponding message as appended"
-            new String(secondTopicResult) == "Is Different"
-            new String(firstTopicResult) == "Hello World!"
+            secondTopicSize == secondSrc.length
+            StandardCharsets.UTF_8.decode(secondDest).toString() == "Is Different"
+            firstTopicSize == firstSrc.length
+            StandardCharsets.UTF_8.decode(firstDest).toString() == "Hello World!"
     }
 
     def "concurrent write on a non-existing log should yield only one log directory created"() {
@@ -87,7 +95,10 @@ class LogManagerTest extends Specification {
         then: "only one folder with the topic name should be created"
             Files.list(Paths.get(mainDirectory)).toArray().length == 1
             Files.list(Paths.get(mainDirectory)).anyMatch { it.toString().endsWith("testTopic-1")  }
-            new String(logManager.read(new Topic("testTopic"), 1, 999)) == "Hello"
+            def expectedSize = "Hello".getBytes().length
+            def dest = ByteBuffer.allocate(12 + expectedSize)
+            logManager.read(new Topic("testTopic"), 1, 999, dest) == expectedSize
+            StandardCharsets.UTF_8.decode(dest).toString() == "Hello"
     }
 
     def "concurrent reads across multiple segments should work correctly"() {
@@ -99,7 +110,9 @@ class LogManagerTest extends Specification {
             def executor = Executors.newVirtualThreadPerTaskExecutor()
             def futures = (0..<1000).collect {
                 CompletableFuture.supplyAsync({
-                    new String(logManager.read(new Topic("testTopic"), 1, 1))
+                    def dest = ByteBuffer.allocate(12 + "HelloW".getBytes().length)
+                    logManager.read(new Topic("testTopic"), 1, 1, dest)
+                    StandardCharsets.UTF_8.decode(dest).toString()
                 }, executor)
             }
             def results = futures.collect { it.join() }
@@ -122,12 +135,16 @@ class LogManagerTest extends Specification {
             def executor = Executors.newVirtualThreadPerTaskExecutor()
             def futures = (0..<1000).collect {
                 CompletableFuture.supplyAsync({
-                    new String(logManager.read(new Topic("testTopic"), 1, 1))
+                    def dest = ByteBuffer.allocate(12 + "HelloW".getBytes().length)
+                    logManager.read(new Topic("testTopic"), 1, 1, dest)
+                    StandardCharsets.UTF_8.decode(dest).toString()
                 }, executor)
             }
             def secondPartitionFutures = (0..<1000).collect {
                 CompletableFuture.supplyAsync({
-                    new String(logManager.read(new Topic("testTopic"), 3, 1))
+                    def dest = ByteBuffer.allocate(12 + "SecondP".getBytes().length)
+                    logManager.read(new Topic("testTopic"), 3, 1, dest)
+                    StandardCharsets.UTF_8.decode(dest).toString()
                 }, executor)
             }
             def results = futures.collect { it.join() }

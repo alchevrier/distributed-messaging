@@ -3,6 +3,8 @@ package io.alchevrier.logstorageengine
 import spock.lang.Specification
 import spock.lang.TempDir
 
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -30,7 +32,7 @@ class LogTest extends Specification {
 
     def "reading from empty log should throw exception"() {
         when: "no existing logs"
-            log.read(0)
+            log.read(0, ByteBuffer.allocate(12 + 1))
         then: "should throw exception as there is no content"
             thrown RuntimeException
     }
@@ -61,46 +63,73 @@ class LogTest extends Specification {
 
     def "appending more than the segment size  then read"() {
         when: "appending further than segment size"
-            log.append("Hello World".getBytes())
-            log.append("HelloW".getBytes())
+            def firstSrc = "Hello World".getBytes()
+            log.append(firstSrc)
+            def secondSrc = "HelloW".getBytes()
+            log.append(secondSrc)
         then: "should be able to read all offsets"
-            new String(log.read(1)) == "HelloW"
-            new String(log.read(0)) == "Hello World"
+            def dest = ByteBuffer.allocate(12 + secondSrc.length)
+            log.read(1, dest)
+            StandardCharsets.UTF_8.decode(dest).toString() == "HelloW"
+            def secondDst = ByteBuffer.allocate(12 + firstSrc.length)
+            log.read(0, secondDst)
+            StandardCharsets.UTF_8.decode(secondDst).toString() == "Hello World"
     }
 
     def "appending within the segment size then read"() {
         when: "appending no further than the segment size"
-            log.append("Hello".getBytes())
-            log.append("Wo".getBytes())
+            def firstSrc = "Hello".getBytes()
+            log.append(firstSrc)
+            def secondSrc = "Wo".getBytes()
+            log.append(secondSrc)
         then: "should be able to read all offsets"
-            new String(log.read(1)) == "Wo"
-            new String(log.read(0)) == "Hello"
+            def secondDst = ByteBuffer.allocate(12 + secondSrc.length)
+            log.read(1, secondDst)
+            StandardCharsets.UTF_8.decode(secondDst).toString() == "Wo"
+            def firstDst = ByteBuffer.allocate(12 + firstSrc.length)
+            log.read(0, firstDst)
+            StandardCharsets.UTF_8.decode(firstDst).toString() == "Hello"
     }
 
     def "appending more than the segment size then create a new log for same directory should fetch existing segments"() {
         when: "appending further than segment size"
-            log.append("Hello World".getBytes())
-            log.append("HelloW".getBytes())
+            def firstSrc = "Hello World".getBytes()
+            log.append(firstSrc)
+            def secondSrc = "HelloW".getBytes()
+            log.append(secondSrc)
 
             log.close()
             log = new LogImpl(logPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
         then: "should be able to read all offsets anyway"
-            new String(log.read(1)) == "HelloW"
-            new String(log.read(0)) == "Hello World"
+            def secondDst = ByteBuffer.allocate(12 + secondSrc.length)
+            log.read(1, secondDst)
+            StandardCharsets.UTF_8.decode(secondDst).toString() == "HelloW"
+            def firstDst = ByteBuffer.allocate(12 + firstSrc.length)
+            log.read(0, firstDst)
+            StandardCharsets.UTF_8.decode(firstDst).toString() == "Hello World"
     }
 
     def "appending more than the segment size then when appending again should append at the correct offset"() {
         when: "appending further than segment size"
-            log.append("Hello World".getBytes())
-            log.append("HelloW".getBytes())
+            def firstSrc = "Hello World".getBytes()
+            log.append(firstSrc)
+            def secondSrc = "HelloW".getBytes()
+            log.append(secondSrc)
 
             log.close()
             log = new LogImpl(logPath, TEST_SEGMENT_SIZE, FLUSH_INTERVAL)
-            log.append("Should be appended at the right place".getBytes())
+            def thirdSrc = "Should be appended at the right place".getBytes()
+            log.append(thirdSrc)
         then: "should be able to read all offsets anyway"
-            new String(log.read(1)) == "HelloW"
-            new String(log.read(2)) == "Should be appended at the right place"
-            new String(log.read(0)) == "Hello World"
+            def secondDst = ByteBuffer.allocate(12 + secondSrc.length)
+            log.read(1, secondDst)
+            StandardCharsets.UTF_8.decode(secondDst).toString() == "HelloW"
+            def thirdDst = ByteBuffer.allocate(12 + thirdSrc.length)
+            log.read(2, thirdDst)
+            StandardCharsets.UTF_8.decode(thirdDst).toString() == "Should be appended at the right place"
+            def firstDst = ByteBuffer.allocate(12 + firstSrc.length)
+            log.read(0, firstDst)
+            StandardCharsets.UTF_8.decode(firstDst).toString() == "Hello World"
     }
 
     def "concurrent reads across multiple segments should work correctly"() {
@@ -115,7 +144,10 @@ class LogTest extends Specification {
             def executor = Executors.newVirtualThreadPerTaskExecutor()
             def futures = (0..<1000).collect {
                 CompletableFuture.supplyAsync({
-                    new String(log.read(1))
+                    def length = "HelloW".getBytes().length
+                    def dst = ByteBuffer.allocate(12 + length)
+                    log.read(1, dst)
+                    StandardCharsets.UTF_8.decode(dst).toString()
                 }, executor)
             }
             def results = futures.collect { it.join() }

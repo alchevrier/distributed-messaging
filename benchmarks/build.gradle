@@ -21,13 +21,20 @@ java {
     }
 }
 
+// Run a specific benchmark:
+//   ./gradlew :benchmarks:jmh -PjmhInclude=LogManagerReadBenchmark
+//   ./gradlew :benchmarks:jmh -PjmhInclude=LogManagerAppendBenchmark
+def benchmarkClass = project.findProperty('jmhInclude') ?: 'LogManagerAppendBenchmark'
+def jfrFile = benchmarkClass.contains('Read') ? 'read.jfr' : 'append.jfr'
+
 jmh {
     fork = 1
     warmupIterations = 5
     iterations = 5
+    includes = [benchmarkClass]
     jvmArgs = [
             '--add-exports=java.base/sun.misc=ALL-UNNAMED',
             '-XX:+FlightRecorder',
-            '-XX:StartFlightRecording=filename=/tmp/benchmark/logManager/benchmark.jfr,dumponexit=true'
+            "-XX:StartFlightRecording=filename=/tmp/benchmark/logManager/${jfrFile},dumponexit=true"
     ]
 }

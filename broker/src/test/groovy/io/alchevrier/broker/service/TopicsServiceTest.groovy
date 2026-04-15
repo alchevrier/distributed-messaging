@@ -5,6 +5,8 @@ import io.alchevrier.logstorageengine.LogManager
 import io.alchevrier.message.Topic
 import spock.lang.Specification
 
+import java.nio.ByteBuffer
+
 class TopicsServiceTest extends Specification {
     LogManager logManager
     TopicsService objectUnderTest
@@ -12,7 +14,7 @@ class TopicsServiceTest extends Specification {
 
     def setup() {
         logManager = Mock(LogManager)
-        objectUnderTest = new TopicsService(logManager)
+        objectUnderTest = new TopicsService(logManager, 200)
         testTopic = new Topic("hello")
     }
 
@@ -25,7 +27,12 @@ class TopicsServiceTest extends Specification {
             new String(result.messages()[0].data()) == "Hello World"
             !result.error
 
-            1 * logManager.read(testTopic, 0, 0) >> "Hello World".getBytes()
+            1 * logManager.read(testTopic, 0, 0, _) >> { args ->
+                def buf = "Hello World".getBytes()
+                (args[3] as ByteBuffer).put(buf)
+                (args[3] as ByteBuffer).flip()
+                buf.length
+            }
     }
 
     def "given a base offset, a topic name and a batch size of three then should provide consume response of size three"() {
@@ -41,9 +48,24 @@ class TopicsServiceTest extends Specification {
             new String(result.messages()[2].data()) == "Hey Pa!"
             !result.error
 
-            1 * logManager.read(testTopic, 0, 0) >> "Hello World".getBytes()
-            1 * logManager.read(testTopic, 0, 1) >> "Second Message".getBytes()
-            1 * logManager.read(testTopic, 0, 2) >> "Hey Pa!".getBytes()
+            1 * logManager.read(testTopic, 0, 0, _) >> { args ->
+                def buf = "Hello World".getBytes()
+                (args[3] as ByteBuffer).put(buf)
+                (args[3] as ByteBuffer).flip()
+                buf.length
+            }
+            1 * logManager.read(testTopic, 0, 1, _) >> { args ->
+                def buf = "Second Message".getBytes()
+                (args[3] as ByteBuffer).put(buf)
+                (args[3] as ByteBuffer).flip()
+                buf.length
+            }
+            1 * logManager.read(testTopic, 0, 2, _) >> { args ->
+                def buf = "Hey Pa!".getBytes()
+                (args[3] as ByteBuffer).put(buf)
+                (args[3] as ByteBuffer).flip()
+                buf.length
+            }
     }
 
     def "appending to the log should provide the offset it was written on"() {

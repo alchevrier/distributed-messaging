@@ -3,6 +3,7 @@ broker:
   max-segment-size: 1000000
   flush-interval: 50000
   partition-number: 3
+  read-buffer-size: 300
 
 binary:
   server:

@@ -1,5 +1,7 @@
 package io.alchevrier.logstorageengine;
 
+import java.nio.ByteBuffer;
+
 /**
  * Manage multiple segments for ONE topic
  * - Decides when to roll new segment (default is 100MB)
@@ -8,7 +10,7 @@ package io.alchevrier.logstorageengine;
  */
 public interface Log {
     long append(byte[] data);
-    byte[] read(long offset);
+    int read(long offset, ByteBuffer dest);
     void flush();
     void close();
     long messageCount();

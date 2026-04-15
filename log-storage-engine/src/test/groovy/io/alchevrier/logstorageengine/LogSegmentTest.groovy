@@ -4,6 +4,7 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -43,9 +44,12 @@ class LogSegmentTest extends Specification {
 
     def "appending to an empty log then should allow us to read log entry"() {
         when: "writing data to the log segment and flushing/closing"
-            segment.append(0, "Hello World!".getBytes())
+            def buf = "Hello World!".getBytes()
+            segment.append(0, buf)
             segment.flush()
-            def result = new String(segment.read(0))
+            def dest = ByteBuffer.allocate(12 + buf.length)
+            segment.read(0, dest)
+            def result = StandardCharsets.UTF_8.decode(dest).toString()
 
         then: "should read if provided the correct offset"
             result == "Hello World!"
@@ -55,7 +59,7 @@ class LogSegmentTest extends Specification {
         when: "writing data to the log segment and flushing/closing"
             segment.append(0, "Hello World!".getBytes())
             segment.flush()
-            segment.read(1)
+            segment.read(1, ByteBuffer.allocate(12 + 1))
 
         then: "should read if provided the correct offset"
             thrown RuntimeException
@@ -94,11 +98,14 @@ class LogSegmentTest extends Specification {
 
     def "appending to a log file should be accessible by a fresh log segment"() {
         when: "writing data to the log segment and flushing/closing"
-            segment.append(0, "Hello World!".getBytes())
+            def buf = "Hello World!".getBytes()
+            segment.append(0, buf)
             segment.flush()
             segment.close()
             segment = new LogSegmentImpl(segmentPath, 1, 400) // starting from the next offset
-            def result = new String(segment.read(0))
+            def dest = ByteBuffer.allocate(12 + buf.length)
+            segment.read(0, dest)
+            def result = StandardCharsets.UTF_8.decode(dest).toString()
 
         then: "log file information should be established as persisted"
             result == "Hello World!"
@@ -112,8 +119,11 @@ class LogSegmentTest extends Specification {
             segment.flush()
             segment.close()
             segment = new LogSegmentImpl(segmentPath, 1, 400) // starting from the next offset
-            segment.append(1, "This should be accessible".getBytes())
-            def result = new String(segment.read(1))
+            def buf = "This should be accessible".getBytes()
+            segment.append(1, buf)
+            def dest = ByteBuffer.allocate(12 + buf.length)
+            segment.read(1, dest)
+            def result = StandardCharsets.UTF_8.decode(dest).toString()
 
         then: "log file information should be established as persisted"
             result == "This should be accessible"
@@ -123,31 +133,53 @@ class LogSegmentTest extends Specification {
 
     def "multiple messages survive restart"() {
         when:
-            segment.append(0, "First".getBytes())
-            segment.append(1, "Second".getBytes())
-            segment.append(2, "Third".getBytes())
+            def firstSrc = "First".getBytes()
+            segment.append(0, firstSrc)
+            def secondSrc = "Second".getBytes()
+            segment.append(1, secondSrc)
+            def thirdSrc = "Third".getBytes()
+            segment.append(2, thirdSrc)
             segment.flush()
             segment.close()
 
             segment = new LogSegmentImpl(segmentPath, 0, 400)
 
         then:
-            new String(segment.read(0)) == "First"
-            new String(segment.read(1)) == "Second"  // This would have failed!
-            new String(segment.read(2)) == "Third"
+            def dest = ByteBuffer.allocate(12 + firstSrc.length)
+            segment.read(0, dest)
+            StandardCharsets.UTF_8.decode(dest).toString() == "First"
+
+            def secondDest = ByteBuffer.allocate(12 + secondSrc.length)
+            segment.read(1, secondDest)
+            StandardCharsets.UTF_8.decode(secondDest).toString() == "Second"  // This would have failed!
+
+            def thirdDst = ByteBuffer.allocate(12 + thirdSrc.length)
+            segment.read(2, thirdDst)
+            StandardCharsets.UTF_8.decode(thirdDst).toString() == "Third"
     }
 
     def "appending multiple times to a log file should be accessible"() {
         when: "writing data to the log segment and flushing/closing"
-            segment.append(0, "Hello World!".getBytes())
-            segment.append(1, "Second message".getBytes())
-            segment.append(2, "Will it work you think?".getBytes())
+            def firstSrc = "Hello World!".getBytes()
+            segment.append(0, firstSrc)
+            def secondSrc = "Second message".getBytes()
+            segment.append(1, secondSrc)
+            def thirdSrc = "Will it work you think?".getBytes()
+            segment.append(2, thirdSrc)
             segment.flush()
 
             // reading out of order to check that we can access an offset any time
-            def thirdResult = new String(segment.read(2))
-            def firstResult = new String(segment.read(0))
-            def secondResult = new String(segment.read(1))
+            def thirdDst = ByteBuffer.allocate(12 + thirdSrc.length)
+            segment.read(2, thirdDst)
+            def thirdResult = StandardCharsets.UTF_8.decode(thirdDst).toString()
+
+            def dest = ByteBuffer.allocate(12 + firstSrc.length)
+            segment.read(0, dest)
+            def firstResult = StandardCharsets.UTF_8.decode(dest).toString()
+
+            def secondDest = ByteBuffer.allocate(12 + secondSrc.length)
+            segment.read(1, secondDest)
+            def secondResult = StandardCharsets.UTF_8.decode(secondDest).toString()
 
         then: "log file information should be established as persisted"
             firstResult == "Hello World!"
@@ -166,7 +198,9 @@ class LogSegmentTest extends Specification {
             def executor = Executors.newVirtualThreadPerTaskExecutor()
             def futures = (0..<1000).collect {
                 CompletableFuture.supplyAsync({
-                    new String(segment.read(0))
+                    def dest = ByteBuffer.allocate(12 + "Hello World!".getBytes().length)
+                    segment.read(0, dest)
+                    StandardCharsets.UTF_8.decode(dest).toString()
                 }, executor)
             }
             def results = futures.collect { it.join() }
