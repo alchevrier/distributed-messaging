@@ -92,12 +92,41 @@ distributed-messaging/
 | 2 | Binary TCP protocol, NIO, serialisation | ✅ Done |
 | 3 | Partitioning, MurmurHash3, multi-partition broker | ✅ Done |
 | 4 | Raft consensus — leader election + log replication + integration tests | ✅ Done |
-| 5 | Off-heap storage, zero-copy read path, JMH benchmarks | � In Progress |
+| 5 | Off-heap storage, zero-allocation read path, JMH benchmarks | ✅ Done |
 
-**Phase 5 target:** Off-heap `MemorySegment` slab allocator, 16-byte packed
-log entries, `FileChannel.transferTo()` zero-copy reads, JMH benchmark suite
-on bare-metal Linux. Goal: measure actual latency cost of each architectural
-layer under load.
+## Performance
+
+All numbers from JMH `SampleTime` mode on bare-metal Linux. JFR attached to each run to confirm GC behaviour.
+
+### Write path (append)
+
+| Percentile | Baseline | After Phase 5 | Δ |
+|---|---|---|---|
+| p50 | 3,900 ns | 4,432 ns | +14% |
+| p99 | 6,500 ns | 6,584 ns | flat |
+| p99.99 | 306,000 ns | 70,519 ns | **−77%** |
+| p100 | 40,000,000 ns | 11,993,000 ns | **−70%** |
+| Max GC pause | 655 ms (growing) | 2 ms flat | **eliminated** |
+
+Root cause: `ByteBuffer.allocate()` on every append + `HashMap<Long, Long>` entry allocations drove Old gen growth and 655 ms stop-the-world pauses.
+
+Fix: pre-allocated `MemorySegment` header slab (off-heap, `Arena.ofShared()`), binary search flat index slab replacing the `HashMap`. Scatter-gather `FileChannel.write(ByteBuffer[], 0, 2)` — one syscall for header + payload.
+
+### Read path
+
+| Percentile | Baseline | After Phase 5 | Δ |
+|---|---|---|---|
+| p50 | 801 ns | 465 ns | **−42%** |
+| p99 | 1,114 ns | 734 ns | **−34%** |
+| p99.99 | 14,236 ns | 13,984 ns | −2% |
+| p100 | 1,234,944 ns | 718,848 ns | **−42%** |
+| Max GC pause | ~1.5 ms | 2 ms flat | stable |
+
+Root cause: two `FileChannel.read()` syscalls per message (length then data) + shared `ByteBuffer` that introduced a concurrency hazard under `ReentrantReadWriteLock` (concurrent readers racing on `clear()`/`flip()`).
+
+Fix: single `FileChannel.read()` into the caller-provided buffer — full record (header + payload) in one syscall. Extract length with `getInt()`, skip the 8-byte offset field, remaining bytes are the payload. Zero allocation inside the storage engine. Topic-partition routing keys pre-computed at topic creation to eliminate `String` concatenation on the hot path.
+
+Full methodology, JMH results, and JFR traces in [`benchmarks/results/`](benchmarks/results/).
 
 ## Build and run
 
